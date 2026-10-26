@@ -5,7 +5,6 @@ CONFIG=$ROOT/scripts/apipv6_config.sh
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/apipv6-cli-test.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
 
-chmod 755 "$ROOT"/tests/mocks/*
 export PATH="$ROOT/tests/mocks:$PATH"
 export APIPV6_KS_DIR=$TEMP/koolshare
 export APIPV6_RUN_DIR=$APIPV6_KS_DIR/var/apipv6
