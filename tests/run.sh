@@ -390,7 +390,7 @@ latest_backup=$UPGRADE_ROOT/backup/easytier/20990101000000-999999
 mkdir -p "$latest_backup/scripts"
 printf '%s\n' 'scripts/easytier_config.sh' > "$latest_backup/manifest"
 printf '%s\n' 'LATEST_SCRIPT' > "$latest_backup/scripts/easytier_config.sh"
-KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/null ||
+KS_DIR="$UPGRADE_ROOT" sh "$PKG/rollback.sh" >/dev/null ||
     fail "automatic rollback did not select a valid backup"
 [ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = LATEST_SCRIPT ] ||
     fail "automatic rollback did not select the latest timestamped backup"
