@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 MOCK_BIN=$TMP/mockbin
@@ -122,8 +122,8 @@ MOCK
 fi
 
 export PATH="$MOCK_BIN:$PATH"
-export DBUS_LOG=$TMP/dbus.log
-export IPTABLES_STATE=$TMP/iptables.rules
+export DBUS_LOG="$TMP/dbus.log"
+export IPTABLES_STATE="$TMP/iptables.rules"
 : > "$IPTABLES_STATE"
 : > "$DBUS_LOG"
 
@@ -157,7 +157,7 @@ plugin_process_count() {
 
 # Exercise nvram/dbus/ip/iptables mocks without reading real device data.
 [ "$(nvram get lan_ipaddr)" = 192.0.2.1 ] || fail "nvram mock"
-export DBUS_STATE=$TMP/dbus.values
+export DBUS_STATE="$TMP/dbus.values"
 printf '%s\n' 'easytier_autostart=0' > "$DBUS_STATE"
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "dbus mock"
 IPV4_READY=1 ip -4 route show default | grep -q '^default ' || fail "IPv4 route mock"
@@ -183,20 +183,20 @@ echo_date() {
 }
 BASE
 
-export EASYTIER_KS_DIR=$SERVICE_ROOT
-export EASYTIER_RUN_DIR=$RUN_DIR
-export EASYTIER_TMP_DIR=$TMP
-export EASYTIER_LOG_DIR=$LOG_DIR
+export EASYTIER_KS_DIR="$SERVICE_ROOT"
+export EASYTIER_RUN_DIR="$RUN_DIR"
+export EASYTIER_TMP_DIR="$TMP"
+export EASYTIER_LOG_DIR="$LOG_DIR"
 export EASYTIER_PROC_ROOT=/proc
 export EASYTIER_START_WAIT=1
 export EASYTIER_STOP_WAIT=3
 export EASYTIER_AUTO_RETRIES=2
 export EASYTIER_AUTO_DELAY=0
 export EASYTIER_LOCK_ATTEMPTS=10
-export EASYTIER_LOCK_DIR=$RUN_DIR/easytier.lock
-export EASYTIER_AUTO_LOCK_DIR=$RUN_DIR/easytier-autostart.lock
-export EASYTIER_CONFIG_FILE=$SERVICE_ROOT/configs/easytier.conf
-export EASYTIER_PID_FILE=$RUN_DIR/easytier.pid
+export EASYTIER_LOCK_DIR="$RUN_DIR/easytier.lock"
+export EASYTIER_AUTO_LOCK_DIR="$RUN_DIR/easytier-autostart.lock"
+export EASYTIER_CONFIG_FILE="$SERVICE_ROOT/configs/easytier.conf"
+export EASYTIER_PID_FILE="$RUN_DIR/easytier.pid"
 SERVICE=$ROOT/scripts/easytier_config.sh
 config_before=$(cat "$EASYTIER_CONFIG_FILE")
 printf '%s\n' 'easytier_autostart=0' 'easytier_config_content_encoded=KEEP_DBUS' 'easytier_network_name=KEEP_NAME' 'easytier_network_secret=KEEP_SECRET' > "$DBUS_STATE"
@@ -291,7 +291,7 @@ sh "$SERVICE" autostart || fail "IPv4-only autostart"
 sh "$SERVICE" stop || fail "stop after autostart"
 
 # Check V/S/N dispatch and asynchronous duplicate-event handling.
-export EASYTIER_CONFIG_SCRIPT=$SERVICE
+export EASYTIER_CONFIG_SCRIPT="$SERVICE"
 printf '%s\n' 'easytier_autostart=0' > "$DBUS_STATE"
 sh "$ROOT/init.d/V99easytier.sh" services-start
 /bin/sleep 0.2
@@ -335,7 +335,7 @@ sh "$SERVICE" stop || fail "stop with legacy firewall rules"
     fail "stop deleted an unowned legacy INPUT rule"
 
 # Web submissions still answer immediately, save config, and write the log terminator.
-export HTTP_RESPONSE_FILE=$TMP/http-response
+export HTTP_RESPONSE_FILE="$TMP/http-response"
 encoded=$(printf '%s' 'web-config' | base64 | tr -d '\n')
 easytier_config_content_encoded=$encoded easytier_autostart=0 sh "$SERVICE" save_config web_submit
 [ "$(cat "$HTTP_RESPONSE_FILE")" = success ] || fail "web submit did not respond immediately"
@@ -365,8 +365,8 @@ chmod 755 "$UPGRADE_ROOT/bin/easytier-core"
 printf '%s\n' 'current-user-config-do-not-replace' > "$UPGRADE_ROOT/configs/easytier.conf"
 printf '%s\n' 'OLD_PLUGIN_SCRIPT' > "$UPGRADE_ROOT/scripts/easytier_config.sh"
 printf '%s\n' 'easytier_autostart=1' 'easytier_network_name=KEEP_NAME' 'easytier_network_secret=KEEP_SECRET' 'easytier_config_content_encoded=KEEP_CONFIG' > "$TMP/install-dbus"
-export DBUS_STATE=$TMP/install-dbus
-export DBUS_LOG=$TMP/install-dbus.log
+export DBUS_STATE="$TMP/install-dbus"
+export DBUS_LOG="$TMP/install-dbus.log"
 : > "$DBUS_LOG"
 KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install-tmp" \
     sh "$PKG/install.sh" > "$TMP/upgrade-output" || fail "upgrade install"
@@ -384,6 +384,16 @@ KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/nul
 [ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = OLD_PLUGIN_SCRIPT ] || fail "rollback did not restore script"
 [ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] || fail "rollback changed core"
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "rollback changed config"
+
+# Automatic rollback selects the latest timestamped backup without non-POSIX test operators.
+latest_backup=$UPGRADE_ROOT/backup/easytier/20990101000000-999999
+mkdir -p "$latest_backup/scripts"
+printf '%s\n' 'scripts/easytier_config.sh' > "$latest_backup/manifest"
+printf '%s\n' 'LATEST_SCRIPT' > "$latest_backup/scripts/easytier_config.sh"
+KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/null ||
+    fail "automatic rollback did not select a valid backup"
+[ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = LATEST_SCRIPT ] ||
+    fail "automatic rollback did not select the latest timestamped backup"
 
 # A mid-install copy failure automatically restores scripts and releases its lock.
 FAIL_ROOT=$TMP/fail-root
@@ -415,7 +425,7 @@ grep -F '安装已回滚' "$TMP/fail-output" >/dev/null || fail "failed install 
 NEW_ROOT=$TMP/new-root
 mkdir -p "$NEW_ROOT"
 printf '%s\n' 'easytier_autostart=0' > "$TMP/new-dbus"
-export DBUS_STATE=$TMP/new-dbus
+export DBUS_STATE="$TMP/new-dbus"
 KS_DIR="$NEW_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/new-tmp" sh "$PKG/install.sh" >/dev/null ||
     fail "new installation"
 cmp -s "$NEW_ROOT/bin/easytier-core" "$PKG/bin/easytier-core_arm32" ||

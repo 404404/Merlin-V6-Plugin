@@ -9,9 +9,9 @@ if [ -z "$backup" ]; then
     for candidate in "$BACKUP_ROOT"/*; do
         [ -d "$candidate" ] || continue
         [ -r "$candidate/manifest" ] || continue
-        if [ -z "$backup" ] || [ "$candidate" \> "$backup" ]; then
-            backup=$candidate
-        fi
+        # Backup names start with a sortable YYYYMMDDHHMMSS timestamp.
+        # POSIX pathname expansion is lexical, so retain the last valid entry.
+        backup=$candidate
     done
 fi
 case "$backup" in
