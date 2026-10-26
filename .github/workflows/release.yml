@@ -48,8 +48,8 @@ jobs:
           [[ "$plugin_version" == "$declared_plugin_version" ]]
           [[ -n "$core_version" ]]
           echo "core_version=$core_version" >> "$GITHUB_OUTPUT"
-          git fetch origin Main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/Main
+          git fetch origin EasyTier-Merlin
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/EasyTier-Merlin
           echo "plugin_version=$plugin_version" >> "$GITHUB_OUTPUT"
           echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"

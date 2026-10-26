@@ -2,9 +2,9 @@ name: EasyTier CI
 
 on:
   pull_request:
-    branches: [Main]
+    branches: [EasyTier-Merlin]
   push:
-    branches: [Main]
+    branches: [EasyTier-Merlin]
   workflow_dispatch:
   workflow_call:
 
