@@ -67,7 +67,8 @@ function conf2obj() {
         } catch(e) { console.log("Base64解码失败:", e); }
     }
     if (dbus['easytier_autostart']) E("easytier_autostart").checked = dbus['easytier_autostart'] !== "0";
-    if (dbus["easytier_version"]) E("easytier_version").innerHTML = " - " + dbus["easytier_version"];
+    E("easytier_plugin_version").textContent = "1.0.1";
+    E("easytier_core_version").textContent = "未知（未执行核心版本查询）";
     
     E("easytier_status").style.display = "";
     update_autostart_availability();
@@ -137,8 +138,11 @@ function save_config() {
 }
 
 function service_action(action) {
-    var data = get_config_data();
-    if (!data) return false;
+    var data = {};
+    if (action !== "stop") {
+        data = get_config_data();
+        if (!data) return false;
+    }
     var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": [action, "web_submit"], "fields": data};
     $.ajax({
         type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 15000,
@@ -265,7 +269,7 @@ function clear_runtime_log() {
                                 <tr>
                                     <td bgcolor="#4D595D" colspan="3" valign="top">
                                         <div>&nbsp;</div>
-                                        <div class="formfonttitle">EasyTier <label id="easytier_version"></label></div>
+                                        <div class="formfonttitle">EasyTier <span style="font-size:13px;">插件 v<label id="easytier_plugin_version">1.0.1</label> · 核心 <label id="easytier_core_version">未知</label></span></div>
                                         <div style="float: right; width: 15px; height: 25px; margin-top: -20px">
                                             <img id="return_btn" alt="" onclick="reload_Soft_Center();" align="right" style="cursor: pointer; position: absolute; margin-left: -30px; margin-top: -25px;" title="返回软件中心" src="/images/backprev.png" onmouseover="this.src='/images/backprevclick.png'" onmouseout="this.src='/images/backprev.png'" />
                                         </div>

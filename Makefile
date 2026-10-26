@@ -1,74 +1,75 @@
-# EasyTier KoolShare 插件自动化双平台打包 Makefile
+# Deterministic KoolShare packages. Core archives are pinned to official EasyTier v2.6.4.
 PLUGIN_NAME := easytier
-BUILD_DIR := build_tmp
+PLUGIN_VERSION ?= 1.0.1
+CORE_VERSION ?= 2.6.4
+BUILD_DIR ?= build_tmp
+CORE_DIR ?= $(BUILD_DIR)/core
 PLATFORMS := hnd qca
-
-# 定义最终输出的包名列表
 OUTPUT_PKGS := $(foreach p,$(PLATFORMS),$(PLUGIN_NAME)_$(p).tar.gz)
 
-.PHONY: all clean check-version prepare download copy pack_all $(PLATFORMS)
+CORE_RELEASE := https://github.com/EasyTier/EasyTier/releases/download/v$(CORE_VERSION)
+ARM64_ARCHIVE := easytier-linux-aarch64-v$(CORE_VERSION).zip
+ARM32_ARCHIVE := easytier-linux-armv7-v$(CORE_VERSION).zip
+ARM64_SHA256 := f533ec25a7ea714e09f645615012200278058525795cc3bb690ff011aec1a70f
+ARM32_SHA256 := 93b1d2831e45db1fd3ca1d8d68c191b300bd69d331ca1858394a0cf884363cc3
 
-# 默认执行的动作：清理 -> 准备 -> 下载基础文件 -> 生成所有平台的包
-all: clean prepare download pack_all
+.PHONY: all clean download package checksums test-package print-versions
 
-# 检查是否传入了 VERSION 变量
-check-version:
-ifndef VERSION
-	$(error ❌ 错误: 未提供版本号! 请使用类似 make VERSION=2.6.4 的命令)
-endif
+# Keep the order explicit so a parallel make cannot package before downloads finish.
+all:
+	$(MAKE) clean
+	$(MAKE) download
+	$(MAKE) package
+	$(MAKE) checksums
+
+print-versions:
+	@printf 'PLUGIN_VERSION=%s\nCORE_VERSION=%s\n' '$(PLUGIN_VERSION)' '$(CORE_VERSION)'
 
 clean:
-	@echo "清理旧文件..."
-	rm -rf $(BUILD_DIR) $(OUTPUT_PKGS)
+	rm -rf "$(BUILD_DIR)" $(OUTPUT_PKGS) SHA256SUMS
 
-prepare: check-version
-	@echo "创建通用下载目录结构..."
-	mkdir -p $(BUILD_DIR)/dl_tmp
+download:
+	mkdir -p "$(CORE_DIR)" "$(BUILD_DIR)/downloads/arm64" "$(BUILD_DIR)/downloads/arm32"
+	curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
+		"$(CORE_RELEASE)/$(ARM64_ARCHIVE)" -o "$(BUILD_DIR)/downloads/$(ARM64_ARCHIVE)"
+	printf '%s  %s\n' "$(ARM64_SHA256)" "$(BUILD_DIR)/downloads/$(ARM64_ARCHIVE)" | sha256sum --check -
+	unzip -q "$(BUILD_DIR)/downloads/$(ARM64_ARCHIVE)" -d "$(BUILD_DIR)/downloads/arm64"
+	arm64_core=$$(find "$(BUILD_DIR)/downloads/arm64" -type f -name easytier-core -print -quit); \
+		test -n "$$arm64_core"; cp "$$arm64_core" "$(CORE_DIR)/easytier-core_arm64"
+	curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
+		"$(CORE_RELEASE)/$(ARM32_ARCHIVE)" -o "$(BUILD_DIR)/downloads/$(ARM32_ARCHIVE)"
+	printf '%s  %s\n' "$(ARM32_SHA256)" "$(BUILD_DIR)/downloads/$(ARM32_ARCHIVE)" | sha256sum --check -
+	unzip -q "$(BUILD_DIR)/downloads/$(ARM32_ARCHIVE)" -d "$(BUILD_DIR)/downloads/arm32"
+	arm32_core=$$(find "$(BUILD_DIR)/downloads/arm32" -type f -name easytier-core -print -quit); \
+		test -n "$$arm32_core"; cp "$$arm32_core" "$(CORE_DIR)/easytier-core_arm32"
+	chmod 755 "$(CORE_DIR)/easytier-core_arm64" "$(CORE_DIR)/easytier-core_arm32"
 
-download: prepare
-	@echo "下载 EasyTier ARM64 核心 (v$(VERSION))..."
-	wget -qO $(BUILD_DIR)/dl_tmp/arm64.zip "https://github.com/EasyTier/EasyTier/releases/download/v$(VERSION)/easytier-linux-aarch64-v$(VERSION).zip"
-	unzip -q $(BUILD_DIR)/dl_tmp/arm64.zip -d $(BUILD_DIR)/dl_tmp/arm64/
+package:
+	@test -s "$(CORE_DIR)/easytier-core_arm64" || { echo "Missing ARM64 core in $(CORE_DIR)" >&2; exit 1; }
+	@test -s "$(CORE_DIR)/easytier-core_arm32" || { echo "Missing ARMv7 core in $(CORE_DIR)" >&2; exit 1; }
+	@test -f res/easytier.png || { echo "Missing plugin icon: res/easytier.png" >&2; exit 1; }
+	@set -eu; \
+	for platform in $(PLATFORMS); do \
+		pkg="$(BUILD_DIR)/$$platform/$(PLUGIN_NAME)"; \
+		rm -rf "$$pkg"; \
+		mkdir -p "$$pkg/bin" "$$pkg/scripts" "$$pkg/webs" "$$pkg/res" "$$pkg/init.d"; \
+		cp "$(CORE_DIR)/easytier-core_arm64" "$$pkg/bin/easytier-core_arm64"; \
+		cp "$(CORE_DIR)/easytier-core_arm32" "$$pkg/bin/easytier-core_arm32"; \
+		cp install.sh config.json.js uninstall.sh rollback.sh "$$pkg/"; \
+		cp scripts/easytier_config.sh "$$pkg/scripts/"; \
+		cp webs/Module_easytier.asp "$$pkg/webs/"; \
+		cp res/easytier.png "$$pkg/res/"; \
+		cp init.d/V99easytier.sh init.d/S99easytier.sh init.d/N99easytier.sh "$$pkg/init.d/"; \
+		printf '%s\n' "$(CORE_VERSION)" > "$$pkg/core-version.txt"; \
+		printf '%s\n' "$$platform" > "$$pkg/.valid"; \
+		chmod 755 "$$pkg/bin/"* "$$pkg/scripts/"*.sh "$$pkg/"*.sh "$$pkg/init.d/"*.sh; \
+		tar -czf "$(PLUGIN_NAME)_$$platform.tar.gz" -C "$(BUILD_DIR)/$$platform" "$(PLUGIN_NAME)"; \
+	done
 
-	@echo "下载 EasyTier ARM32/armv7 核心 (v$(VERSION))..."
-	wget -qO $(BUILD_DIR)/dl_tmp/arm32.zip "https://github.com/EasyTier/EasyTier/releases/download/v$(VERSION)/easytier-linux-armv7-v$(VERSION).zip"
-	unzip -q $(BUILD_DIR)/dl_tmp/arm32.zip -d $(BUILD_DIR)/dl_tmp/arm32/
+checksums:
+	sha256sum $(OUTPUT_PKGS) > SHA256SUMS
 
-# 这一步是核心！遍历所有的 PLATFORMS (hnd 和 qca) 进行独立组装和打包
-pack_all: $(PLATFORMS)
-
-# 定义如何为一个特定的平台(hnd 或 qca)进行组装和打包
-$(PLATFORMS):
-	@echo "================================================="
-	@echo "🚀 开始构建 $@ 平台安装包..."
-	@echo "================================================="
-	
-	# 1. 为当前平台创建一个专属的组装目录
-	mkdir -p $(BUILD_DIR)/$@/$(PLUGIN_NAME)/bin
-	mkdir -p $(BUILD_DIR)/$@/$(PLUGIN_NAME)/scripts
-	mkdir -p $(BUILD_DIR)/$@/$(PLUGIN_NAME)/webs
-	mkdir -p $(BUILD_DIR)/$@/$(PLUGIN_NAME)/res
-	
-	# 2. 复制二进制核心
-	find $(BUILD_DIR)/dl_tmp/arm64 -type f -name "easytier-core" -exec cp {} $(BUILD_DIR)/$@/$(PLUGIN_NAME)/bin/easytier-core_arm64 \;
-	find $(BUILD_DIR)/dl_tmp/arm32 -type f -name "easytier-core" -exec cp {} $(BUILD_DIR)/$@/$(PLUGIN_NAME)/bin/easytier-core_arm32 \;
-	
-	# 3. 复制前端和脚本代码
-	cp install.sh          $(BUILD_DIR)/$@/$(PLUGIN_NAME)/
-	cp config.json.js      $(BUILD_DIR)/$@/$(PLUGIN_NAME)/
-	cp scripts/easytier_config.sh $(BUILD_DIR)/$@/$(PLUGIN_NAME)/scripts/
-	cp webs/Module_easytier.asp   $(BUILD_DIR)/$@/$(PLUGIN_NAME)/webs/
-	cp res/easytier.png           $(BUILD_DIR)/$@/$(PLUGIN_NAME)/res/
-	
-	# 4. 注入当前平台专属的 .valid 文件 (核心操作)
-	echo "$@" > $(BUILD_DIR)/$@/$(PLUGIN_NAME)/.valid
-	
-	# 5. 赋予执行权限
-	chmod +x $(BUILD_DIR)/$@/$(PLUGIN_NAME)/bin/*
-	chmod +x $(BUILD_DIR)/$@/$(PLUGIN_NAME)/scripts/*
-	chmod +x $(BUILD_DIR)/$@/$(PLUGIN_NAME)/*.sh
-	
-	# 6. 生成最终的压缩包，退出到根目录执行 tar
-	@echo "📦 正在打包 $(PLUGIN_NAME)_$@.tar.gz ..."
-	cd $(BUILD_DIR)/$@ && tar -czvf ../../$(PLUGIN_NAME)_$@.tar.gz $(PLUGIN_NAME)/
-	@echo "✅ $@ 平台打包完成！\n"
+test-package:
+	$(MAKE) clean
+	$(MAKE) package CORE_DIR=tests/fixtures/core
+	$(MAKE) checksums

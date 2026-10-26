@@ -1,0 +1,3 @@
+#!/bin/sh
+# Non-ARM stand-in used only to inspect archive layout in CI tests.
+exit 0

@@ -1,0 +1,121 @@
+name: EasyTier Release
+
+on:
+  push:
+    tags:
+      - 'plugin-v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Full CI before release
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  release:
+    name: Publish release
+    needs: ci
+    if: startsWith(github.ref, 'refs/tags/plugin-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag, merged commit and versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          release_version="${tag#plugin-v}"
+          [[ "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+          plugin_version="${release_version%%-*}"
+          prerelease=false
+          [[ "$release_version" == "$plugin_version" ]] || prerelease=true
+          declared_plugin_version="$(sed -n 's/.*"plugin_version": "\([^"]*\)".*/\1/p' config.json.js)"
+          core_version="$(sed -n 's/^CORE_VERSION ?= //p' Makefile)"
+          [[ "$plugin_version" == "$declared_plugin_version" ]]
+          [[ -n "$core_version" ]]
+          echo "core_version=$core_version" >> "$GITHUB_OUTPUT"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          echo "plugin_version=$plugin_version" >> "$GITHUB_OUTPUT"
+          echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Download CI packages
+        uses: actions/download-artifact@v4
+        with:
+          name: easytier-packages
+          path: release-assets
+
+      - name: Verify release assets and write notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum --check SHA256SUMS
+          for file in easytier_hnd.tar.gz easytier_qca.tar.gz SHA256SUMS; do
+            test -s "$file"
+          done
+          cat > ../release-notes.md <<'NOTES'
+          ## EasyTier KoolShare plugin ${{ steps.versions.outputs.release_version }}
+
+          - Plugin changes: safe CLI lifecycle, asynchronous AP boot startup, idempotent service/firewall handling, and upgrade rollback support.
+          - Plugin version: ${{ steps.versions.outputs.release_version }} (base version ${{ steps.versions.outputs.plugin_version }}).
+          - EasyTier core build baseline in new-install packages: official v${{ steps.versions.outputs.core_version }}, downloaded from the EasyTier release and verified against pinned SHA-256 values.
+          - Existing installations keep their current easytier-core and configuration. The installed device core version may be unknown; the installer does not query or replace it.
+          - Packages: easytier_hnd.tar.gz and easytier_qca.tar.gz; checksums: SHA256SUMS.
+          - ASUS RT-AX56U cold-boot verification: **Not performed by CI; real-device validation is still required.**
+          NOTES
+
+      - name: Create release once, without overwriting existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            assets="$(gh release view "$tag" --json assets --jq '.assets[].name' | sort)"
+            expected="$(printf '%s\n' SHA256SUMS easytier_hnd.tar.gz easytier_qca.tar.gz | sort)"
+            expected_prerelease="${{ steps.versions.outputs.prerelease }}"
+            existing_prerelease="$(gh release view "$tag" --json isPrerelease --jq '.isPrerelease')"
+            hashes_match=1
+            for file in SHA256SUMS easytier_hnd.tar.gz easytier_qca.tar.gz; do
+              local_hash="sha256:$(sha256sum "release-assets/$file" | awk '{print $1}')"
+              remote_hash="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
+                --jq ".assets[] | select(.name == \"$file\") | .digest")"
+              [[ "$remote_hash" == "$local_hash" ]] || hashes_match=0
+            done
+            if [[ "$assets" == "$expected" && "$hashes_match" == 1 && "$existing_prerelease" == "$expected_prerelease" ]]; then
+              echo "Release $tag already has these exact assets and release type; skipping duplicate upload."
+              exit 0
+            fi
+            echo "Release $tag exists with a different asset set; refusing to overwrite it." >&2
+            exit 1
+          fi
+          release_flags=(
+            --verify-tag
+            --title "EasyTier plugin $tag"
+            --notes-file release-notes.md
+          )
+          if [[ "${{ steps.versions.outputs.prerelease }}" == true ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$tag" \
+            release-assets/easytier_hnd.tar.gz \
+            release-assets/easytier_qca.tar.gz \
+            release-assets/SHA256SUMS \
+            "${release_flags[@]}"
