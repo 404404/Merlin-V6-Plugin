@@ -400,13 +400,26 @@ autostart_service() {
     return "$result"
 }
 
+restore_dbus_value() {
+    restore_key=$1
+    restore_value=$2
+    if [ -n "$restore_value" ]; then
+        dbus set "$restore_key=$restore_value"
+    else
+        dbus remove "$restore_key"
+    fi
+}
+
 save_config() {
     encoded=${easytier_config_content_encoded:-}
-    [ -n "$encoded" ] || encoded=$(dbus get easytier_config_content_encoded 2>/dev/null)
     if [ -z "$encoded" ]; then
         log_msg "配置保存失败：表单配置为空"
         return 1
     fi
+    case "${easytier_autostart:-}" in
+        ''|0|1) ;;
+        *) log_msg "配置保存失败：自启动值必须是 0 或 1"; return 1 ;;
+    esac
     mkdir -p "$(dirname "$CONFIG_FILE")" 2>/dev/null || {
         log_msg "配置保存失败：无法创建配置目录"
         return 1
@@ -422,17 +435,45 @@ save_config() {
         log_msg "配置保存失败：无法设置权限"
         return 1
     }
-    mv "$tmpfile" "$CONFIG_FILE" || {
+
+    old_encoded=$(dbus get easytier_config_content_encoded 2>/dev/null)
+    old_autostart=$(dbus get easytier_autostart 2>/dev/null)
+    if ! dbus set easytier_config_content_encoded="$encoded"; then
+        rm -f "$tmpfile"
+        restore_dbus_value easytier_config_content_encoded "$old_encoded" 2>/dev/null ||
+            log_msg "警告：无法恢复原有 DBUS 配置"
+        log_msg "配置保存失败：无法写入 DBUS 配置"
+        return 1
+    fi
+
+    case "${easytier_autostart:-}" in
+        0|1)
+            if ! dbus set easytier_autostart="$easytier_autostart"; then
+                restore_dbus_value easytier_config_content_encoded "$old_encoded" 2>/dev/null ||
+                    log_msg "警告：无法恢复原有 DBUS 配置"
+                restore_dbus_value easytier_autostart "$old_autostart" 2>/dev/null ||
+                    log_msg "警告：无法恢复原有自启动设置"
+                rm -f "$tmpfile"
+                log_msg "配置保存失败：无法写入自启动设置"
+                return 1
+            fi
+            ;;
+    esac
+
+    if ! mv "$tmpfile" "$CONFIG_FILE"; then
+        restore_dbus_value easytier_config_content_encoded "$old_encoded" 2>/dev/null ||
+            log_msg "警告：无法恢复原有 DBUS 配置"
+        case "${easytier_autostart:-}" in
+            0|1)
+                restore_dbus_value easytier_autostart "$old_autostart" 2>/dev/null ||
+                    log_msg "警告：无法恢复原有自启动设置"
+                ;;
+        esac
         rm -f "$tmpfile"
         log_msg "配置保存失败：无法原子替换配置文件"
         return 1
-    }
+    fi
 
-    [ -n "${easytier_config_content_encoded:-}" ] &&
-        dbus set easytier_config_content_encoded="$easytier_config_content_encoded"
-    case "${easytier_autostart:-}" in
-        0|1) dbus set easytier_autostart="$easytier_autostart" ;;
-    esac
     log_msg "配置文件已保存"
     return 0
 }
@@ -440,6 +481,10 @@ save_config() {
 save_autostart() {
     case "${easytier_autostart:-}" in
         0|1)
+            if [ "$easytier_autostart" = 1 ] && [ ! -s "$CONFIG_FILE" ]; then
+                log_msg "自启动设置保存失败：请先保存非空配置文件"
+                return 1
+            fi
             dbus set easytier_autostart="$easytier_autostart" || {
                 log_msg "自启动设置保存失败"
                 return 1
@@ -536,8 +581,19 @@ if [ "$WEB_SUBMIT" = 1 ]; then
     (
         : > "$LOG_FILE" 2>/dev/null || :
         log_msg "========= EasyTier Web 任务 ========="
-        dispatch
-        result=$?
+        case "$OPERATION" in
+            start|restart)
+                save_config
+                result=$?
+                ;;
+            *)
+                result=0
+                ;;
+        esac
+        if [ "$result" -eq 0 ]; then
+            dispatch
+            result=$?
+        fi
         [ "$result" -eq 0 ] || log_msg "Web 操作失败，退出码：$result"
         log_msg "Web 操作完成"
         printf '%s\n' XU6J03M6 >> "$LOG_FILE"

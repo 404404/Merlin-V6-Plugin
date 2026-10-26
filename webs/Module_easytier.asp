@@ -76,7 +76,8 @@ function conf2obj() {
 
 function update_autostart_availability() {
     var content = E("easytier_config_content").value.trim();
-    E("easytier_autostart").disabled = !content;
+    var autostart = E("easytier_autostart");
+    autostart.disabled = !content && !autostart.checked;
     E("autostart_warning").style.display = content ? "none" : "";
 }
 
@@ -153,7 +154,14 @@ function service_action(action) {
 
 function save_autostart_config() {
     var val = E("easytier_autostart").checked ? '1' : '0';
-    var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": ["save_autostart", "web_submit"], "fields": {"easytier_autostart": val}};
+    var operation = "save_autostart";
+    var data = {"easytier_autostart": val};
+    if (val === '1') {
+        data = get_config_data();
+        if (!data) return false;
+        operation = "save_config";
+    }
+    var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": [operation, "web_submit"], "fields": data};
     $.ajax({
         type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 10000,
         success: function() { get_log(0); },
@@ -324,7 +332,7 @@ function clear_runtime_log() {
                                                 <tr>
                                                     <th>开机自启动</th>
                                                     <td>
-                                                        <input type="checkbox" id="easytier_autostart" style="vertical-align:middle;">
+                                                        <input type="checkbox" id="easytier_autostart" style="vertical-align:middle;" onchange="update_autostart_availability();">
                                                         <span style="color:#FC0;margin-left:5px;">勾选后系统重启时自动启动EasyTier服务</span>
                                                         <div id="autostart_warning" style="margin-top:5px; color:#ff6666; display:none;">
                                                             <i class="fa fa-exclamation-triangle"></i> 请先粘贴配置文件内容后再设置自启动
