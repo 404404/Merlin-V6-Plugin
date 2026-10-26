@@ -82,12 +82,12 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
 .github/workflows/ci.yml 在以下情况下运行：
 
 - Pull Request：静态检查、BusyBox ash 语法、mock 生命周期与安装测试、测试核心打包结构。
-- 推送到 main：上述测试通过后，再下载固定版本的官方核心、校验 SHA-256 并构建 HND/QCA 安装包。
+- 推送到仓库默认分支 `Main`：上述测试通过后，再下载固定版本的官方核心、校验 SHA-256 并构建 HND/QCA 安装包。
 - Actions 手动触发：打开 Actions → EasyTier CI → Run workflow；成功后从该次运行下载 easytier-packages 工件。
 
-.github/workflows/release.yml 只响应 plugin-v* Tag。发布任务会再次执行完整 CI，检查 Tag 指向的提交已进入 main，再创建 Release 并附上两个安装包和 SHA256SUMS。已有同名 Release 不会被覆盖或重复上传。
+.github/workflows/release.yml 只响应 plugin-v* Tag。发布任务会再次执行完整 CI，检查 Tag 指向的提交已进入 `Main`，再创建 Release 并附上两个安装包和 SHA256SUMS。已有同名 Release 不会被覆盖或重复上传。
 
-PR 合并到 main 且 CI 全部通过后，先发布候选版：
+PR 合并到 `Main` 且 CI 全部通过后，先发布候选版：
 
     git tag plugin-v1.0.1-rc.1
     git push origin plugin-v1.0.1-rc.1
