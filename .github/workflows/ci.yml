@@ -32,6 +32,9 @@ jobs:
             busybox ash -n "$file"
           done
 
+      - name: JSON metadata syntax
+        run: python3 -m json.tool config.json.js > /dev/null
+
       - name: ShellCheck
         run: |
           shellcheck --shell=sh --exclude=SC1090,SC1091 \
