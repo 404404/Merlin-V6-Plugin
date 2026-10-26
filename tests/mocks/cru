@@ -1,0 +1,3 @@
+#!/bin/sh
+[ -n "${MOCK_CRU_LOG:-}" ] && printf '%s\n' "$*" >> "$MOCK_CRU_LOG"
+[ "${MOCK_CRU_FAIL:-0}" != 1 ]

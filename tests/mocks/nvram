@@ -1,0 +1,10 @@
+#!/bin/sh
+if [ "${1:-}" = get ]; then
+    case "${2:-}" in
+        sw_mode) printf '%s\n' "${MOCK_SW_MODE:-3}" ;;
+        wlc_psta) printf '%s\n' "${MOCK_WLC_PSTA:-0}" ;;
+        *) exit 1 ;;
+    esac
+    exit 0
+fi
+exit 1

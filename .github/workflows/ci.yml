@@ -1,0 +1,106 @@
+name: AP IPv6 Manager CI
+
+on:
+  push:
+    branches: [IPv6-Fix-In-AP-Mode]
+  pull_request:
+    branches: [Main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install static-check tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes busybox shellcheck python3 nodejs perl
+
+      - name: POSIX sh and BusyBox ash syntax
+        run: |
+          set -eu
+          for file in install.sh uninstall.sh rollback.sh scripts/*.sh init.d/*.sh tests/*.sh tests/mocks/*; do
+            [ -f "$file" ] || continue
+            sh -n "$file"
+            busybox ash -n "$file"
+          done
+
+      - name: ShellCheck
+        run: shellcheck --shell=sh --severity=error install.sh uninstall.sh rollback.sh scripts/*.sh init.d/*.sh tests/*.sh tests/mocks/*
+
+      - name: Metadata JSON
+        run: python3 -m json.tool config.json.js > /dev/null
+
+      - name: Web controller syntax and behavior
+        run: node tests/test_web.js
+
+  integration-tests:
+    name: Mocked integration and lifecycle tests
+    needs: static-checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install --yes perl coreutils
+
+      - name: Run CLI, repair safety, migration, install, upgrade, rollback, and uninstall tests
+        run: sh tests/run.sh
+
+  package-build:
+    name: Build HND and QCA packages
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build offline install packages
+        run: make all PLUGIN_VERSION=0.1.0
+
+      - name: Upload candidate package set for validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: apipv6-package-candidate
+          path: |
+            apipv6_hnd.tar.gz
+            apipv6_qca.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+
+  package-validation-and-artifacts:
+    name: Validate and publish test artifacts
+    needs: package-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download candidate packages
+        uses: actions/download-artifact@v4
+        with:
+          name: apipv6-package-candidate
+          path: .
+
+      - name: Validate package layout, platform markers, metadata, and checksums
+        run: sh scripts/check_package.sh
+
+      - name: Upload validated test install packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: apipv6-packages
+          path: |
+            apipv6_hnd.tar.gz
+            apipv6_qca.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14

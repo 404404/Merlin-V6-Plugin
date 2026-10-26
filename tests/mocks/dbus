@@ -1,0 +1,29 @@
+#!/bin/sh
+file=${MOCK_DBUS_FILE:?}
+mkdir -p "$(dirname "$file")" 2>/dev/null || exit 1
+command_name=${1:-}
+case "$command_name" in
+    get)
+        key=${2:-}
+        awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); value=$0 } END { if (value != "") print value }' "$file" 2>/dev/null
+        ;;
+    set)
+        pair=${2:-}
+        key=${pair%%=*}
+        value=${pair#*=}
+        [ -n "$key" ] || exit 1
+        [ "${MOCK_DBUS_FAIL_KEY:-}" = "$key" ] && exit 1
+        tmp=$file.tmp.$$
+        awk -F= -v key="$key" '$1 != key' "$file" 2>/dev/null > "$tmp" || :
+        printf '%s=%s\n' "$key" "$value" >> "$tmp" || exit 1
+        mv -f "$tmp" "$file"
+        ;;
+    remove)
+        key=${2:-}
+        tmp=$file.tmp.$$
+        awk -F= -v key="$key" '$1 != key' "$file" 2>/dev/null > "$tmp" || :
+        mv -f "$tmp" "$file"
+        ;;
+    save) exit 0 ;;
+    *) exit 1 ;;
+esac
