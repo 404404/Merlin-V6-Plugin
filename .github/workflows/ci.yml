@@ -47,7 +47,6 @@ jobs:
 
   build:
     name: Build official-core offline packages
-    if: github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
     steps:
