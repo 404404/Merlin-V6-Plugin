@@ -141,6 +141,29 @@ install_file() {
     mv -f "$install_tmp" "$target" || { rm -f "$install_tmp"; return 1; }
 }
 
+resolve_nvram() {
+    nvram_path=$(command -v nvram 2>/dev/null) || nvram_path=
+    if [ -n "$nvram_path" ]; then
+        printf '%s\n' "$nvram_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_NVRAM_SEARCH_DIRS:-/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for nvram_dir in $search_dirs; do
+        [ -n "$nvram_dir" ] || continue
+        nvram_path=$nvram_dir/nvram
+        if [ -x "$nvram_path" ] && [ ! -d "$nvram_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$nvram_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
 initialize_setting() {
     key=$1
     value=$2
@@ -161,12 +184,13 @@ main() {
     do
         [ -f "$SOURCE_DIR/$required" ] || abort_install "安装包缺少文件：$required"
     done
-    for tool in nvram dbus ip sha256sum; do
+    for tool in dbus ip sha256sum; do
         command -v "$tool" >/dev/null 2>&1 || abort_install "固件缺少必要命令：$tool"
     done
-    sw_mode=$(nvram get sw_mode 2>/dev/null | tr -d '\r\n')
+    APIPV6_NVRAM_CMD=$(resolve_nvram) || abort_install '固件中找不到可执行的 nvram；已检查 PATH、/usr/sbin、/sbin、/usr/bin 和 /bin。'
+    sw_mode=$("$APIPV6_NVRAM_CMD" get sw_mode 2>/dev/null | tr -d '\r\n')
     case "$sw_mode" in 1|2|3|4) ;; *) say "警告：无法识别 sw_mode=${sw_mode:-empty}；插件将以只读诊断模式安装。" ;; esac
-    wlc_psta=$(nvram get wlc_psta 2>/dev/null | tr -d '\r\n')
+    wlc_psta=$("$APIPV6_NVRAM_CMD" get wlc_psta 2>/dev/null | tr -d '\r\n')
     [ -n "$wlc_psta" ] || wlc_psta=0
     case "$wlc_psta" in 0|1) ;; *) wlc_psta=unknown ;; esac
     for file in "$SOURCE_DIR/install.sh" "$SOURCE_DIR/uninstall.sh" "$SOURCE_DIR/rollback.sh" \

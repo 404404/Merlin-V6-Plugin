@@ -7,7 +7,6 @@ SOURCE=$TEMP/source
 SOURCE2=$TEMP/source-upgrade
 KS=$TEMP/koolshare
 mkdir -p "$SOURCE/scripts" "$SOURCE/webs" "$SOURCE/res" "$SOURCE/init.d" "$SOURCE2"
-chmod 755 "$ROOT"/tests/mocks/*
 export PATH="$ROOT/tests/mocks:$PATH"
 export MOCK_DBUS_FILE=$TEMP/dbus.values
 export MOCK_SW_MODE=3
@@ -44,6 +43,23 @@ read_hash() { sha256sum "$1" | awk '{print $1}'; }
 
 copy_source "$SOURCE"
 mkdir -p "$KS/init.d" "$APIPV6_SYSCTL_ROOT/br0" "$APIPV6_SYSCTL_ROOT/eth0" "$APIPV6_SYSCTL_ROOT/all" "$TEMP/proc/sys/net/ipv4"
+
+# Simulate KoolShare invoking the installer with a restricted PATH. Firmware
+# nvram is available under /usr/sbin even though `command -v nvram` fails.
+NO_NVRAM_MOCKS=$TEMP/mocks-without-nvram
+FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
+mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN"
+for mock in "$ROOT"/tests/mocks/*; do
+    [ "${mock##*/}" = nvram ] && continue
+    cp "$mock" "$NO_NVRAM_MOCKS/${mock##*/}"
+done
+cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
+chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram"
+install_log=$(PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" \
+    APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" \
+    APIPV6_SOURCE_DIR="$SOURCE" sh "$SOURCE/install.sh")
+printf '%s\n' "$install_log" | grep -q 'AP 模式已通过 sw_mode=3、wlc_psta=0 检测' ||
+    fail 'installer did not resolve nvram outside PATH and detect AP mode'
 cat > "$KS/init.d/V00apipv6.sh" <<'EOF'
 #!/bin/sh
 echo 0 > /proc/sys/net/ipv6/conf/br0/disable_ipv6

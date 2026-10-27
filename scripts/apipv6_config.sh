@@ -115,9 +115,32 @@ read_sysctl() {
     fi
 }
 
+resolve_nvram() {
+    nvram_path=$(command -v nvram 2>/dev/null) || nvram_path=
+    if [ -n "$nvram_path" ]; then
+        printf '%s\n' "$nvram_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_NVRAM_SEARCH_DIRS:-/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for nvram_dir in $search_dirs; do
+        [ -n "$nvram_dir" ] || continue
+        nvram_path=$nvram_dir/nvram
+        if [ -x "$nvram_path" ] && [ ! -d "$nvram_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$nvram_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
 read_mode() {
-    if command -v nvram >/dev/null 2>&1; then
-        mode_value=$(nvram get sw_mode 2>/dev/null | tr -d '\r\n')
+    if nvram_command=$(resolve_nvram); then
+        mode_value=$("$nvram_command" get sw_mode 2>/dev/null | tr -d '\r\n')
         [ -n "$mode_value" ] || mode_value=unknown
         printf '%s' "$mode_value"
     else
@@ -126,8 +149,8 @@ read_mode() {
 }
 
 read_proxysta() {
-    if command -v nvram >/dev/null 2>&1; then
-        proxysta_value=$(nvram get wlc_psta 2>/dev/null | tr -d '\r\n')
+    if nvram_command=$(resolve_nvram); then
+        proxysta_value=$("$nvram_command" get wlc_psta 2>/dev/null | tr -d '\r\n')
         [ -n "$proxysta_value" ] || proxysta_value=0
         case "$proxysta_value" in 0|1) ;; *) proxysta_value=unknown ;; esac
         printf '%s' "$proxysta_value"

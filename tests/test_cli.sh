@@ -84,6 +84,21 @@ printf '%s' "$out" | grep -q '"address":"feb1::5678","type":"link_local"' || fai
 printf '%s' "$out" | grep -q '"temporary":true' || fail 'temporary classification missing'
 printf '%s' "$out" | grep -q '"address":"240a:42cc:1001:7141::10","type":"global_unicast","state":"preferred","prefix_length":"64","preferred_lifetime":"7200sec","valid_lifetime":"86400sec","temporary":false' || fail 'mngtmpaddr template was incorrectly classified as a temporary address'
 
+# Runtime mode detection must also find nvram when it is outside PATH.
+NO_NVRAM_MOCKS=$TEMP/mocks-without-nvram
+FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
+mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN"
+for mock in "$ROOT"/tests/mocks/*; do
+    [ "${mock##*/}" = nvram ] && continue
+    cp "$mock" "$NO_NVRAM_MOCKS/${mock##*/}"
+done
+cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
+chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram"
+out=$(PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" \
+    APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" "$CONFIG" status --json)
+assert_health "$out" normal
+assert_field "$out" ap_mode true
+
 printf '1\n' > "$APIPV6_SYSCTL_ROOT/br0/disable_ipv6"
 out=$("$CONFIG" status --json)
 assert_health "$out" parameter_error
