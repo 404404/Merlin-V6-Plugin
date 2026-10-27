@@ -68,7 +68,7 @@ function conf2obj() {
     }
     if (dbus['easytier_autostart']) E("easytier_autostart").checked = dbus['easytier_autostart'] !== "0";
     E("easytier_plugin_version").textContent = "1.0.1";
-    E("easytier_core_version").textContent = "未知（未执行核心版本查询）";
+    E("easytier_core_version").textContent = "未知（保留设备核心，未查询）";
     
     E("easytier_status").style.display = "";
     update_autostart_availability();
@@ -127,10 +127,28 @@ function get_config_data() {
     return data;
 }
 
+function make_web_post_data(operation, data) {
+    var id = parseInt(Math.random() * 100000000, 10);
+    var fields = {};
+    data = data || {};
+    if (Object.prototype.hasOwnProperty.call(data, "easytier_config_content_encoded")) {
+        fields["easytier_websubmit_" + id + "_config_content_encoded"] = data.easytier_config_content_encoded;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "easytier_autostart")) {
+        fields["easytier_websubmit_" + id + "_autostart"] = data.easytier_autostart;
+    }
+    return {
+        "id": id,
+        "method": "easytier_config.sh",
+        "params": [operation, "web_submit"],
+        "fields": fields
+    };
+}
+
 function save_config() {
     var data = get_config_data();
     if (!data) return false;
-    var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": ["save_config", "web_submit"], "fields": data};
+    var postData = make_web_post_data("save_config", data);
     $.ajax({
         type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 10000,
         success: function() { get_log(0); },
@@ -144,7 +162,7 @@ function service_action(action) {
         data = get_config_data();
         if (!data) return false;
     }
-    var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": [action, "web_submit"], "fields": data};
+    var postData = make_web_post_data(action, data);
     $.ajax({
         type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 15000,
         success: function() { get_log(0); },
@@ -161,7 +179,7 @@ function save_autostart_config() {
         if (!data) return false;
         operation = "save_config";
     }
-    var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": [operation, "web_submit"], "fields": data};
+    var postData = make_web_post_data(operation, data);
     $.ajax({
         type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 10000,
         success: function() { get_log(0); },
@@ -228,7 +246,7 @@ function clear_config() {
 
 function clear_runtime_log() {
     if (confirm("确定要清空 EasyTier 运行日志吗？")) {
-        var postData = {"id": parseInt(Math.random()*100000000), "method": "easytier_config.sh", "params": ["clear_runtime_log", "web_submit"], "fields": {}};
+        var postData = make_web_post_data("clear_runtime_log", {});
         $.ajax({
             type: "POST", url: "/_api/", data: JSON.stringify(postData), dataType: "json", timeout: 10000,
             success: function() { alert("运行日志已清空！"); },

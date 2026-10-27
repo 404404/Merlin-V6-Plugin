@@ -216,7 +216,33 @@ export EASYTIER_CONFIG_FILE="$SERVICE_ROOT/configs/easytier.conf"
 export EASYTIER_PID_FILE="$RUN_DIR/easytier.pid"
 export CORE_CONFIG_CAPTURE="$TMP/core-config.capture"
 SERVICE=$ROOT/scripts/easytier_config.sh
+export HTTP_RESPONSE_FILE="$TMP/http-response"
 config_before=$(cat "$EASYTIER_CONFIG_FILE")
+queue_web_fields() {
+    request_id=$1
+    shift
+    if [ "$#" -gt 0 ]; then
+        dbus set "easytier_websubmit_${request_id}_config_content_encoded=$1"
+        shift
+    fi
+    if [ "$#" -gt 0 ]; then
+        dbus set "easytier_websubmit_${request_id}_autostart=$1"
+    fi
+}
+call_web() {
+    request_id=$1
+    operation=$2
+    shift 2
+    queue_web_fields "$request_id" "$@"
+    sh "$SERVICE" "$request_id" "$operation" web_submit
+}
+assert_web_fields_clean() {
+    request_id=$1
+    [ -z "$(dbus get "easytier_websubmit_${request_id}_config_content_encoded")" ] ||
+        fail "temporary Web config field $request_id was not removed"
+    [ -z "$(dbus get "easytier_websubmit_${request_id}_autostart")" ] ||
+        fail "temporary Web autostart field $request_id was not removed"
+}
 printf '%s\n' 'easytier_autostart=0' 'easytier_config_content_encoded=KEEP_DBUS' 'easytier_network_name=KEEP_NAME' 'easytier_network_secret=KEEP_SECRET' > "$DBUS_STATE"
 cp "$DBUS_STATE" "$TMP/dbus.before"
 
@@ -253,6 +279,8 @@ sh "$SERVICE" start || fail "CLI start"
 pid=$(cat "$EASYTIER_PID_FILE")
 [ "$pid" != 999999999 ] || fail "stale PID was retained"
 [ "$(sh "$SERVICE" status)" = 运行 ] || fail "status after start"
+sh "$SERVICE" 9001 status
+[ "$(cat "$HTTP_RESPONSE_FILE")" = 运行 ] || fail "KoolShare status API response"
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = "$config_before" ] || fail "CLI start changed config"
 cmp -s "$DBUS_STATE" "$TMP/dbus.before" || fail "CLI start changed DBUS configuration"
 if easytier_config_content_encoded=Tk9UX1dSSVRURU4= sh "$SERVICE" save_config; then
@@ -353,10 +381,9 @@ sh "$SERVICE" stop || fail "stop with legacy firewall rules"
     fail "stop deleted an unowned legacy INPUT rule"
 
 # Web submissions still answer immediately, save config, and write the log terminator.
-export HTTP_RESPONSE_FILE="$TMP/http-response"
 encoded=$(printf '%s' 'web-config' | base64 | tr -d '\n')
-easytier_config_content_encoded=$encoded easytier_autostart=0 sh "$SERVICE" save_config web_submit
-[ "$(cat "$HTTP_RESPONSE_FILE")" = success ] || fail "web submit did not respond immediately"
+call_web 9101 save_config "$encoded" 0
+[ "$(cat "$HTTP_RESPONSE_FILE")" = 9101 ] || fail "web submit did not acknowledge the KoolShare request ID"
 wait_for_file "$LOG_DIR/easytier_log.txt" || fail "web log was not created"
 tries=0
 while ! grep -q XU6J03M6 "$LOG_DIR/easytier_log.txt"; do
@@ -367,32 +394,34 @@ done
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = web-config ] || fail "web config was not saved"
 [ "$(dbus get easytier_config_content_encoded)" = "$encoded" ] || fail "web DBUS config was not saved"
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "web autostart setting was not saved"
+assert_web_fields_clean 9101
 
 # Web start/restart must persist the submitted config before launching the core.
 web_start_config=web-start-config
 web_start_encoded=$(printf '%s' "$web_start_config" | base64 | tr -d '\n')
 : > "$LOG_DIR/easytier_log.txt"
-easytier_config_content_encoded=$web_start_encoded easytier_autostart=1 \
-    sh "$SERVICE" start web_submit
-[ "$(cat "$HTTP_RESPONSE_FILE")" = success ] || fail "web start did not respond immediately"
+call_web 9102 start "$web_start_encoded" 1
+[ "$(cat "$HTTP_RESPONSE_FILE")" = 9102 ] || fail "web start did not acknowledge the KoolShare request ID"
 wait_for_web_completion || fail "web start did not finish"
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = "$web_start_config" ] || fail "web start did not save submitted config"
 [ "$(cat "$CORE_CONFIG_CAPTURE")" = "$web_start_config" ] || fail "web start launched core with stale config"
 [ "$(dbus get easytier_config_content_encoded)" = "$web_start_encoded" ] || fail "web start did not save DBUS config"
 [ "$(dbus get easytier_autostart)" = 1 ] || fail "web start did not save autostart setting"
+assert_web_fields_clean 9102
 web_started_pid=$(cat "$EASYTIER_PID_FILE")
 [ "$(plugin_process_count)" = 1 ] || fail "web start launched duplicate processes"
 
 web_restart_config=web-restart-config
 web_restart_encoded=$(printf '%s' "$web_restart_config" | base64 | tr -d '\n')
 : > "$LOG_DIR/easytier_log.txt"
-easytier_config_content_encoded=$web_restart_encoded easytier_autostart=0 \
-    sh "$SERVICE" restart web_submit
+call_web 9103 restart "$web_restart_encoded" 0
+[ "$(cat "$HTTP_RESPONSE_FILE")" = 9103 ] || fail "web restart did not acknowledge the KoolShare request ID"
 wait_for_web_completion || fail "web restart did not finish"
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = "$web_restart_config" ] || fail "web restart did not save submitted config"
 [ "$(cat "$CORE_CONFIG_CAPTURE")" = "$web_restart_config" ] || fail "web restart launched core with stale config"
 [ "$(dbus get easytier_config_content_encoded)" = "$web_restart_encoded" ] || fail "web restart did not save DBUS config"
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "web restart did not save autostart setting"
+assert_web_fields_clean 9103
 [ "$(plugin_process_count)" = 1 ] || fail "web restart left duplicate processes"
 web_restarted_pid=$(cat "$EASYTIER_PID_FILE")
 [ "$web_restarted_pid" != "$web_started_pid" ] || fail "web restart did not replace the process"
@@ -402,8 +431,7 @@ saved_web_config=$(cat "$EASYTIER_CONFIG_FILE")
 saved_web_encoded=$(dbus get easytier_config_content_encoded)
 saved_web_autostart=$(dbus get easytier_autostart)
 : > "$LOG_DIR/easytier_log.txt"
-easytier_config_content_encoded='not-valid-base64!' easytier_autostart=1 \
-    sh "$SERVICE" restart web_submit
+call_web 9104 restart 'not-valid-base64!' 1
 wait_for_web_completion || fail "invalid web restart did not finish"
 grep -F '配置保存失败' "$LOG_DIR/easytier_log.txt" >/dev/null || fail "invalid web config failure was not logged"
 [ "$(cat "$EASYTIER_PID_FILE")" = "$web_restarted_pid" ] || fail "invalid web restart changed the running PID"
@@ -411,11 +439,11 @@ grep -F '配置保存失败' "$LOG_DIR/easytier_log.txt" >/dev/null || fail "inv
 [ "$(dbus get easytier_config_content_encoded)" = "$saved_web_encoded" ] || fail "invalid web restart changed DBUS config"
 [ "$(dbus get easytier_autostart)" = "$saved_web_autostart" ] || fail "invalid web restart changed autostart"
 [ "$(plugin_process_count)" = 1 ] || fail "invalid web restart disturbed the running process"
+assert_web_fields_clean 9104
 
 rm -f "$TMP/dbus-fail-once"
 DBUS_FAIL_SET_KEY=easytier_autostart DBUS_FAIL_ONCE_FILE="$TMP/dbus-fail-once" \
-    easytier_config_content_encoded="$web_start_encoded" easytier_autostart=1 \
-    sh "$SERVICE" restart web_submit
+    call_web 9105 restart "$web_start_encoded" 1
 wait_for_web_completion || fail "DBUS failure web restart did not finish"
 grep -F '无法写入自启动设置' "$LOG_DIR/easytier_log.txt" >/dev/null ||
     fail "DBUS save failure was not logged"
@@ -423,6 +451,7 @@ grep -F '无法写入自启动设置' "$LOG_DIR/easytier_log.txt" >/dev/null ||
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = "$saved_web_config" ] || fail "DBUS failure web restart replaced config"
 [ "$(dbus get easytier_config_content_encoded)" = "$saved_web_encoded" ] || fail "DBUS failure did not restore DBUS config"
 [ "$(dbus get easytier_autostart)" = "$saved_web_autostart" ] || fail "DBUS failure changed autostart"
+assert_web_fields_clean 9105
 
 # CLI restart consumes the on-disk config and ignores Web-only form fields.
 easytier_config_content_encoded="$web_start_encoded" easytier_autostart=1 \
@@ -434,35 +463,48 @@ easytier_config_content_encoded="$web_start_encoded" easytier_autostart=1 \
 
 # Web stop does not persist any submitted fields, including malformed config.
 : > "$LOG_DIR/easytier_log.txt"
-easytier_config_content_encoded='invalid-stop-form' easytier_autostart=1 \
-    sh "$SERVICE" stop web_submit
+call_web 9106 stop 'invalid-stop-form' 1
 wait_for_web_completion || fail "web stop did not finish"
 [ "$(cat "$EASYTIER_CONFIG_FILE")" = "$saved_web_config" ] || fail "web stop modified config"
 [ "$(dbus get easytier_config_content_encoded)" = "$saved_web_encoded" ] || fail "web stop modified DBUS config"
 [ "$(dbus get easytier_autostart)" = "$saved_web_autostart" ] || fail "web stop modified autostart"
 [ "$(plugin_process_count)" = 0 ] || fail "web stop left the service running"
+assert_web_fields_clean 9106
 
 # Enabling autostart requires a saved non-empty config; disabling remains possible without one.
 : > "$EASYTIER_CONFIG_FILE"
 : > "$LOG_DIR/easytier_log.txt"
-easytier_autostart=1 sh "$SERVICE" save_autostart web_submit
+call_web 9107 save_autostart '' 1
 wait_for_web_completion || fail "empty-config autostart save did not finish"
 grep -F '请先保存非空配置文件' "$LOG_DIR/easytier_log.txt" >/dev/null ||
     fail "empty-config autostart rejection was not logged"
 [ "$(dbus get easytier_autostart)" = "$saved_web_autostart" ] || fail "empty-config autostart changed DBUS"
+assert_web_fields_clean 9107
 : > "$LOG_DIR/easytier_log.txt"
-easytier_autostart=0 sh "$SERVICE" save_autostart web_submit
+call_web 9108 save_autostart '' 0
 wait_for_web_completion || fail "autostart disable did not finish"
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "autostart could not be disabled with empty config"
+assert_web_fields_clean 9108
 
 # Invalid Web start with no running instance leaves the service stopped and preserves saved data.
 : > "$LOG_DIR/easytier_log.txt"
-easytier_config_content_encoded='invalid-start-form' easytier_autostart=0 \
-    sh "$SERVICE" start web_submit
+call_web 9109 start 'invalid-start-form' 0
 wait_for_web_completion || fail "invalid web start did not finish"
 [ "$(plugin_process_count)" = 0 ] || fail "invalid web start launched a process"
 [ ! -s "$EASYTIER_CONFIG_FILE" ] || fail "invalid web start replaced config"
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "invalid web start changed autostart"
+assert_web_fields_clean 9109
+
+# An empty Web payload fails before start and leaves persisted config untouched.
+: > "$LOG_DIR/easytier_log.txt"
+call_web 9110 start '' 0
+wait_for_web_completion || fail "empty web start did not finish"
+grep -F '配置保存失败：表单配置为空' "$LOG_DIR/easytier_log.txt" >/dev/null ||
+    fail "empty Web payload failure was not logged"
+[ "$(plugin_process_count)" = 0 ] || fail "empty Web payload launched a process"
+[ ! -s "$EASYTIER_CONFIG_FILE" ] || fail "empty Web payload replaced config"
+[ "$(dbus get easytier_autostart)" = 0 ] || fail "empty Web payload changed autostart"
+assert_web_fields_clean 9110
 
 # Build mock-core packages and verify upgrade preservation, ARMv7 selection, rollback and uninstall.
 make -C "$ROOT" test-package >/dev/null
@@ -484,6 +526,10 @@ export DBUS_LOG="$TMP/install-dbus.log"
 : > "$DBUS_LOG"
 KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install-tmp" \
     sh "$PKG/install.sh" > "$TMP/upgrade-output" || fail "upgrade install"
+[ "$(dbus get softcenter_module_easytier_version)" = 1.0.1 ] ||
+    fail "installer did not register the plugin version"
+[ "$(dbus get softcenter_module_easytier_install)" = 1 ] ||
+    fail "installer did not register the plugin install state"
 [ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] || fail "upgrade replaced existing core"
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "upgrade replaced config"
 [ "$(dbus get easytier_autostart)" = 1 ] || fail "upgrade changed autostart DBUS"
@@ -535,6 +581,30 @@ fi
     fail "failed install changed the existing config"
 [ ! -e "$TMP/fail-tmp/easytier-install.lock" ] || fail "failed install left its lock behind"
 grep -F '安装已回滚' "$TMP/fail-output" >/dev/null || fail "failed install did not explain rollback"
+
+# Version registration failure must fail installation and preserve the prior version and files.
+VERSION_FAIL_ROOT=$TMP/version-fail-root
+mkdir -p "$VERSION_FAIL_ROOT/bin" "$VERSION_FAIL_ROOT/configs" "$VERSION_FAIL_ROOT/scripts" "$TMP/version-fail-tmp"
+printf '%s\n' 'existing-core' > "$VERSION_FAIL_ROOT/bin/easytier-core"
+printf '%s\n' 'existing-config' > "$VERSION_FAIL_ROOT/configs/easytier.conf"
+printf '%s\n' 'EXISTING_VERSION_SCRIPT' > "$VERSION_FAIL_ROOT/scripts/easytier_config.sh"
+printf '%s\n' 'softcenter_module_easytier_version=0.9.0' > "$TMP/version-fail-dbus"
+export DBUS_STATE="$TMP/version-fail-dbus"
+if DBUS_FAIL_SET_KEY=softcenter_module_easytier_version \
+    KS_DIR="$VERSION_FAIL_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/version-fail-tmp" \
+    sh "$PKG/install.sh" > "$TMP/version-fail-output" 2>&1; then
+    fail "version registration failure should fail installation"
+fi
+[ "$(dbus get softcenter_module_easytier_version)" = 0.9.0 ] ||
+    fail "version registration failure changed the prior version"
+[ "$(cat "$VERSION_FAIL_ROOT/scripts/easytier_config.sh")" = EXISTING_VERSION_SCRIPT ] ||
+    fail "version registration failure did not roll back plugin scripts"
+[ "$(cat "$VERSION_FAIL_ROOT/bin/easytier-core")" = existing-core ] ||
+    fail "version registration failure changed the existing core"
+[ "$(cat "$VERSION_FAIL_ROOT/configs/easytier.conf")" = existing-config ] ||
+    fail "version registration failure changed the existing config"
+grep -F '软件中心插件版本号登记失败' "$TMP/version-fail-output" >/dev/null ||
+    fail "version registration failure was not explained"
 
 NEW_ROOT=$TMP/new-root
 mkdir -p "$NEW_ROOT"

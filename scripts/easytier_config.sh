@@ -26,6 +26,11 @@ fi
 
 OPERATION=
 WEB_SUBMIT=0
+API_REQUEST_ID=
+case "${1:-}" in
+    ''|*[!0-9]*) ;;
+    *) API_REQUEST_ID=$1 ;;
+esac
 for arg in "$@"; do
     case "$arg" in
         start|stop|restart|status|save_config|save_autostart|clear_runtime_log|autostart)
@@ -44,6 +49,26 @@ log_msg() {
     else
         printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG_FILE"
     fi
+}
+
+web_field_key() {
+    case "$API_REQUEST_ID" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    printf 'easytier_websubmit_%s_%s\n' "$API_REQUEST_ID" "$1"
+}
+
+read_web_field() {
+    field_key=$(web_field_key "$1") || return 1
+    dbus get "$field_key" 2>/dev/null
+}
+
+cleanup_web_fields() {
+    [ "$WEB_SUBMIT" = 1 ] || return 0
+    for field in config_content_encoded autostart; do
+        field_key=$(web_field_key "$field") || return 0
+        dbus remove "$field_key" >/dev/null 2>&1 || :
+    done
 }
 
 runtime_msg() {
@@ -411,12 +436,13 @@ restore_dbus_value() {
 }
 
 save_config() {
-    encoded=${easytier_config_content_encoded:-}
+    encoded=$(read_web_field config_content_encoded) || encoded=
+    requested_autostart=$(read_web_field autostart) || requested_autostart=
     if [ -z "$encoded" ]; then
         log_msg "配置保存失败：表单配置为空"
         return 1
     fi
-    case "${easytier_autostart:-}" in
+    case "$requested_autostart" in
         ''|0|1) ;;
         *) log_msg "配置保存失败：自启动值必须是 0 或 1"; return 1 ;;
     esac
@@ -446,9 +472,9 @@ save_config() {
         return 1
     fi
 
-    case "${easytier_autostart:-}" in
+    case "$requested_autostart" in
         0|1)
-            if ! dbus set easytier_autostart="$easytier_autostart"; then
+            if ! dbus set easytier_autostart="$requested_autostart"; then
                 restore_dbus_value easytier_config_content_encoded "$old_encoded" 2>/dev/null ||
                     log_msg "警告：无法恢复原有 DBUS 配置"
                 restore_dbus_value easytier_autostart "$old_autostart" 2>/dev/null ||
@@ -463,7 +489,7 @@ save_config() {
     if ! mv "$tmpfile" "$CONFIG_FILE"; then
         restore_dbus_value easytier_config_content_encoded "$old_encoded" 2>/dev/null ||
             log_msg "警告：无法恢复原有 DBUS 配置"
-        case "${easytier_autostart:-}" in
+        case "$requested_autostart" in
             0|1)
                 restore_dbus_value easytier_autostart "$old_autostart" 2>/dev/null ||
                     log_msg "警告：无法恢复原有自启动设置"
@@ -479,13 +505,14 @@ save_config() {
 }
 
 save_autostart() {
-    case "${easytier_autostart:-}" in
+    requested_autostart=$(read_web_field autostart) || requested_autostart=
+    case "$requested_autostart" in
         0|1)
-            if [ "$easytier_autostart" = 1 ] && [ ! -s "$CONFIG_FILE" ]; then
+            if [ "$requested_autostart" = 1 ] && [ ! -s "$CONFIG_FILE" ]; then
                 log_msg "自启动设置保存失败：请先保存非空配置文件"
                 return 1
             fi
-            dbus set easytier_autostart="$easytier_autostart" || {
+            dbus set easytier_autostart="$requested_autostart" || {
                 log_msg "自启动设置保存失败"
                 return 1
             }
@@ -503,13 +530,13 @@ dispatch() {
     case "$OPERATION" in
         status)
             if pid=$(managed_pid); then
-                if [ "$WEB_SUBMIT" = 1 ] && command -v http_response >/dev/null 2>&1; then
+                if [ -n "$API_REQUEST_ID" ] && command -v http_response >/dev/null 2>&1; then
                     http_response "运行"
                 else
                     printf '运行\n'
                 fi
             else
-                if [ "$WEB_SUBMIT" = 1 ] && command -v http_response >/dev/null 2>&1; then
+                if [ -n "$API_REQUEST_ID" ] && command -v http_response >/dev/null 2>&1; then
                     http_response "停止"
                 else
                     printf '停止\n'
@@ -576,7 +603,7 @@ dispatch() {
 
 if [ "$WEB_SUBMIT" = 1 ]; then
     if command -v http_response >/dev/null 2>&1; then
-        http_response "success"
+        http_response "${API_REQUEST_ID:-success}"
     fi
     (
         : > "$LOG_FILE" 2>/dev/null || :
@@ -594,6 +621,7 @@ if [ "$WEB_SUBMIT" = 1 ]; then
             dispatch
             result=$?
         fi
+        cleanup_web_fields
         [ "$result" -eq 0 ] || log_msg "Web 操作失败，退出码：$result"
         log_msg "Web 操作完成"
         printf '%s\n' XU6J03M6 >> "$LOG_FILE"

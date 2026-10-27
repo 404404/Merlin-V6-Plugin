@@ -148,6 +148,7 @@ check_arch() {
 }
 
 main() {
+    command -v dbus >/dev/null 2>&1 || abort_install "固件缺少必要命令：dbus，无法登记插件版本"
     [ -f "$SOURCE_DIR/install.sh" ] || abort_install "找不到安装包目录：$SOURCE_DIR"
     [ -f "$SOURCE_DIR/core-version.txt" ] || abort_install "安装包缺少 core-version.txt"
     package_platform=$(cat "$SOURCE_DIR/.valid" 2>/dev/null)
@@ -222,18 +223,24 @@ main() {
 
     # Never write easytier.conf, identity fields, peer fields, easytier_autostart,
     # or any other EasyTier runtime DBUS configuration during installation.
-    if command -v dbus >/dev/null 2>&1; then
-        dbus set softcenter_module_easytier_version="$PLUGIN_VERSION" ||
-            say "警告：软件中心版本元数据写入失败"
-        dbus set softcenter_module_easytier_install=1 ||
-            say "警告：软件中心安装状态写入失败"
-        dbus set softcenter_module_easytier_name=easytier ||
-            say "警告：软件中心模块名称写入失败"
-        dbus set softcenter_module_easytier_title=EasyTier ||
-            say "警告：软件中心显示名称写入失败"
-        dbus set softcenter_module_easytier_description="简单、安全、去中心化的内网穿透 VPN" ||
-            say "警告：软件中心描述写入失败"
+    old_plugin_version=$(dbus get softcenter_module_easytier_version 2>/dev/null)
+    if ! dbus set softcenter_module_easytier_version="$PLUGIN_VERSION" ||
+        [ "$(dbus get softcenter_module_easytier_version 2>/dev/null)" != "$PLUGIN_VERSION" ]; then
+        if [ -n "$old_plugin_version" ]; then
+            dbus set softcenter_module_easytier_version="$old_plugin_version" >/dev/null 2>&1 || :
+        else
+            dbus remove softcenter_module_easytier_version >/dev/null 2>&1 || :
+        fi
+        abort_install "软件中心插件版本号登记失败（目标版本：$PLUGIN_VERSION）"
     fi
+    dbus set softcenter_module_easytier_install=1 ||
+        say "警告：软件中心安装状态写入失败"
+    dbus set softcenter_module_easytier_name=easytier ||
+        say "警告：软件中心模块名称写入失败"
+    dbus set softcenter_module_easytier_title=EasyTier ||
+        say "警告：软件中心显示名称写入失败"
+    dbus set softcenter_module_easytier_description="简单、安全、去中心化的内网穿透 VPN" ||
+        say "警告：软件中心描述写入失败"
 
     release_install_lock
     say "EasyTier 插件 v$PLUGIN_VERSION 安装完成。核心版本：保留设备现状（未知）"
