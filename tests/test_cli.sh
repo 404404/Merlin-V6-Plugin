@@ -87,13 +87,14 @@ printf '%s' "$out" | grep -q '"address":"240a:42cc:1001:7141::10","type":"global
 # Runtime mode detection must also find nvram when it is outside PATH.
 NO_NVRAM_MOCKS=$TEMP/mocks-without-nvram
 FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
-mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN"
+mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN" "$APIPV6_KS_DIR/bin"
 for mock in "$ROOT"/tests/mocks/*; do
-    [ "${mock##*/}" = nvram ] && continue
+    case "${mock##*/}" in nvram|dbus) continue ;; esac
     cp "$mock" "$NO_NVRAM_MOCKS/${mock##*/}"
 done
 cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
-chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram"
+cp "$ROOT/tests/mocks/dbus" "$APIPV6_KS_DIR/bin/dbus"
+chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram" "$APIPV6_KS_DIR/bin/dbus"
 out=$(PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" \
     APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" "$CONFIG" status --json)
 assert_health "$out" normal

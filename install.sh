@@ -164,6 +164,36 @@ resolve_nvram() {
     return 1
 }
 
+resolve_dbus() {
+    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    if [ -n "$dbus_path" ]; then
+        printf '%s\n' "$dbus_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_DBUS_SEARCH_DIRS:-$KS_DIR/bin:/koolshare/bin:/jffs/softcenter/bin:/jffs/.koolshare/bin:/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for dbus_dir in $search_dirs; do
+        [ -n "$dbus_dir" ] || continue
+        dbus_path=$dbus_dir/dbus
+        if [ -x "$dbus_path" ] && [ ! -d "$dbus_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$dbus_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
+setup_dbus_path() {
+    APIPV6_DBUS_CMD=$(resolve_dbus) || return 1
+    case "$APIPV6_DBUS_CMD" in
+        */*) PATH=${APIPV6_DBUS_CMD%/*}${PATH:+:$PATH}; export PATH ;;
+    esac
+}
+
 initialize_setting() {
     key=$1
     value=$2
@@ -184,9 +214,10 @@ main() {
     do
         [ -f "$SOURCE_DIR/$required" ] || abort_install "安装包缺少文件：$required"
     done
-    for tool in dbus ip sha256sum; do
+    for tool in ip sha256sum; do
         command -v "$tool" >/dev/null 2>&1 || abort_install "固件缺少必要命令：$tool"
     done
+    setup_dbus_path || abort_install "固件中找不到可执行的 dbus；已检查 PATH、$KS_DIR/bin、/koolshare/bin、/jffs/softcenter/bin、/jffs/.koolshare/bin、/usr/sbin、/sbin、/usr/bin 和 /bin。"
     APIPV6_NVRAM_CMD=$(resolve_nvram) || abort_install '固件中找不到可执行的 nvram；已检查 PATH、/usr/sbin、/sbin、/usr/bin 和 /bin。'
     sw_mode=$("$APIPV6_NVRAM_CMD" get sw_mode 2>/dev/null | tr -d '\r\n')
     case "$sw_mode" in 1|2|3|4) ;; *) say "警告：无法识别 sw_mode=${sw_mode:-empty}；插件将以只读诊断模式安装。" ;; esac

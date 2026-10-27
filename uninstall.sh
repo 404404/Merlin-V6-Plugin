@@ -7,7 +7,38 @@ MIGRATE=$KS_DIR/scripts/apipv6_migrate.sh
 
 say() { printf '%s\n' "$*"; }
 
+resolve_dbus() {
+    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    if [ -n "$dbus_path" ]; then
+        printf '%s\n' "$dbus_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_DBUS_SEARCH_DIRS:-$KS_DIR/bin:/koolshare/bin:/jffs/softcenter/bin:/jffs/.koolshare/bin:/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for dbus_dir in $search_dirs; do
+        [ -n "$dbus_dir" ] || continue
+        dbus_path=$dbus_dir/dbus
+        if [ -x "$dbus_path" ] && [ ! -d "$dbus_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$dbus_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
+setup_dbus_path() {
+    APIPV6_DBUS_CMD=$(resolve_dbus) || return 1
+    case "$APIPV6_DBUS_CMD" in
+        */*) PATH=${APIPV6_DBUS_CMD%/*}${PATH:+:$PATH}; export PATH ;;
+    esac
+}
+
 main() {
+    setup_dbus_path || :
     if [ -x "$CONFIG" ]; then
         "$CONFIG" stop >/dev/null 2>&1 || say '警告：无法停止自动管理任务；继续清理插件文件。'
     elif command -v cru >/dev/null 2>&1; then

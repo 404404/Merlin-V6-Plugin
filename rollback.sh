@@ -4,6 +4,36 @@
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
 BACKUP_DIR=${1:-}
 
+resolve_dbus() {
+    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    if [ -n "$dbus_path" ]; then
+        printf '%s\n' "$dbus_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_DBUS_SEARCH_DIRS:-$KS_DIR/bin:/koolshare/bin:/jffs/softcenter/bin:/jffs/.koolshare/bin:/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for dbus_dir in $search_dirs; do
+        [ -n "$dbus_dir" ] || continue
+        dbus_path=$dbus_dir/dbus
+        if [ -x "$dbus_path" ] && [ ! -d "$dbus_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$dbus_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
+setup_dbus_path() {
+    APIPV6_DBUS_CMD=$(resolve_dbus) || return 1
+    case "$APIPV6_DBUS_CMD" in
+        */*) PATH=${APIPV6_DBUS_CMD%/*}${PATH:+:$PATH}; export PATH ;;
+    esac
+}
+
 allowed_path() {
     case "$1" in
         scripts/apipv6_config.sh|scripts/apipv6_migrate.sh|scripts/apipv6_status.sh|\
@@ -49,6 +79,7 @@ restore_files() {
 }
 
 main() {
+    setup_dbus_path || :
     if [ -z "$BACKUP_DIR" ]; then
         [ -r "$KS_DIR/var/apipv6/last-backup" ] || {
             printf '%s\n' 'Usage: apipv6_rollback.sh /koolshare/backup/apipv6/upgrade-...' >&2

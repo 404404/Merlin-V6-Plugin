@@ -103,6 +103,7 @@ JSON 状态字段包括 `health`、`mode`、`bridge`、`sysctl`、`addresses`、
 
 ## 常见问题
 
+- **离线安装提示缺少 `nvram` 或 `dbus`**：软件中心调用安装脚本时可能没有继承固件或 KoolShare 的命令目录。安装器和运行时会检查 `/usr/sbin`、`/koolshare/bin` 等固件目录；仍报错时，请检查对应可执行文件是否存在。
 - **状态显示不适用**：检查 `nvram get sw_mode` 与 `nvram get wlc_psta`。只有值分别为 `3` 与 `0` 时插件才会写 br0 参数。
 - **参数正常但没有地址**：确认上游 RA 已到达桥接网络；插件不会替上游配置 RA 或 DHCPv6。
 - **地址和默认路由正常但探测失败**：保留探测失败诊断，检查上游策略或 ICMPv6 目标过滤；这不会单独触发修复。
