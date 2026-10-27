@@ -2,6 +2,9 @@
 # Conservative migration helper for the former br0-only V00 startup script.
 
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
+PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+export PATH
 RUN_DIR=${APIPV6_RUN_DIR:-$KS_DIR/var/apipv6}
 LEGACY=$KS_DIR/init.d/V00apipv6.sh
 STATE=$RUN_DIR/migration-state

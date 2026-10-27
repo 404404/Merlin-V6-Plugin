@@ -3,6 +3,9 @@
 
 PLUGIN_VERSION=0.1.0
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
+PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+export PATH
 SYSCTL_ROOT=${APIPV6_SYSCTL_ROOT:-/proc/sys/net/ipv6/conf}
 RUN_DIR=${APIPV6_RUN_DIR:-$KS_DIR/var/apipv6}
 CONFIG_FILE=${APIPV6_CONFIG_FILE:-$KS_DIR/configs/apipv6.conf}
@@ -161,6 +164,29 @@ resolve_dbus() {
     return 1
 }
 
+resolve_ip() {
+    ip_path=$(command -v ip 2>/dev/null) || ip_path=
+    if [ -n "$ip_path" ]; then
+        printf '%s\n' "$ip_path"
+        return 0
+    fi
+
+    search_dirs=${APIPV6_IP_SEARCH_DIRS:-/usr/sbin:/sbin:/usr/bin:/bin}
+    saved_ifs=$IFS
+    IFS=:
+    for ip_dir in $search_dirs; do
+        [ -n "$ip_dir" ] || continue
+        ip_path=$ip_dir/ip
+        if [ -x "$ip_path" ] && [ ! -d "$ip_path" ]; then
+            IFS=$saved_ifs
+            printf '%s\n' "$ip_path"
+            return 0
+        fi
+    done
+    IFS=$saved_ifs
+    return 1
+}
+
 setup_dbus_path() {
     APIPV6_DBUS_CMD=$(resolve_dbus) || return 1
     case "$APIPV6_DBUS_CMD" in
@@ -168,6 +194,14 @@ setup_dbus_path() {
     esac
 }
 
+setup_ip_path() {
+    APIPV6_IP_CMD=$(resolve_ip) || return 1
+    case "$APIPV6_IP_CMD" in
+        */*) PATH=${APIPV6_IP_CMD%/*}${PATH:+:$PATH}; export PATH ;;
+    esac
+}
+
+setup_ip_path || :
 setup_dbus_path || :
 
 read_mode() {

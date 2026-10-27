@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
+. "$ROOT/tests/helpers.sh"
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/apipv6-lifecycle-test.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
 SOURCE=$TEMP/source
@@ -45,19 +46,19 @@ copy_source "$SOURCE"
 mkdir -p "$KS/init.d" "$APIPV6_SYSCTL_ROOT/br0" "$APIPV6_SYSCTL_ROOT/eth0" "$APIPV6_SYSCTL_ROOT/all" "$TEMP/proc/sys/net/ipv4"
 
 # Simulate KoolShare invoking the installer with a restricted PATH. Firmware
-# nvram and KoolShare dbus exist in their normal directories outside PATH.
-NO_NVRAM_MOCKS=$TEMP/mocks-without-nvram
+# ip/nvram and KoolShare dbus exist in their normal directories outside PATH.
+NO_FIRMWARE_COMMANDS=$TEMP/mocks-without-ip-nvram-dbus
 FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
-mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN" "$KS/bin"
-for mock in "$ROOT"/tests/mocks/*; do
-    case "${mock##*/}" in nvram|dbus) continue ;; esac
-    cp "$mock" "$NO_NVRAM_MOCKS/${mock##*/}"
-done
+make_path_without_firmware_commands "$NO_FIRMWARE_COMMANDS"
+mkdir -p "$FIRMWARE_SBIN" "$KS/bin"
 cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
+cp "$ROOT/tests/mocks/ip" "$FIRMWARE_SBIN/ip"
 cp "$ROOT/tests/mocks/dbus" "$KS/bin/dbus"
-chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram" "$KS/bin/dbus"
-install_log=$(PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" \
+chmod 755 "$FIRMWARE_SBIN/nvram" "$FIRMWARE_SBIN/ip" "$KS/bin/dbus"
+install_log=$(PATH="$NO_FIRMWARE_COMMANDS" \
+    APIPV6_SYSTEM_PATHS="$FIRMWARE_SBIN" \
     APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" \
+    APIPV6_IP_SEARCH_DIRS="$FIRMWARE_SBIN" \
     APIPV6_SOURCE_DIR="$SOURCE" sh "$SOURCE/install.sh")
 printf '%s\n' "$install_log" | grep -q 'AP 模式已通过 sw_mode=3、wlc_psta=0 检测' ||
     fail 'installer did not resolve nvram outside PATH and detect AP mode'
@@ -115,7 +116,7 @@ new_core_hash=$(read_hash "$KS/scripts/apipv6_config.sh")
 [ "$new_core_hash" != "$old_core_hash" ] || fail 'test upgrade did not replace the core file'
 upgrade_backup=$(cat "$APIPV6_RUN_DIR/last-backup")
 dbus set apipv6_start_delay=99
-PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" sh "$KS/scripts/apipv6_rollback.sh" "$upgrade_backup" >/dev/null
+PATH="$NO_FIRMWARE_COMMANDS" sh "$KS/scripts/apipv6_rollback.sh" "$upgrade_backup" >/dev/null
 expect "$(read_hash "$KS/scripts/apipv6_config.sh")" "$old_core_hash" 'rollback must restore the previous plugin version'
 expect "$(dbus get apipv6_start_delay)" 77 'rollback must restore the prior DBUS configuration'
 
@@ -129,7 +130,7 @@ printf '%s' "$repair_out" | grep -q '"repair_result":"success"' || fail 'repair 
 grep -q '^status=migrated$' "$APIPV6_RUN_DIR/migration-state" || fail 'migration record did not switch to migrated'
 
 # Uninstall stops only plugin work, restores the old entry, and preserves settings/logs.
-PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" sh "$KS/scripts/apipv6_uninstall.sh" >/dev/null
+PATH="$NO_FIRMWARE_COMMANDS" sh "$KS/scripts/apipv6_uninstall.sh" >/dev/null
 [ -f "$KS/init.d/V00apipv6.sh" ] || fail 'uninstall did not restore the migrated old startup entry'
 expect "$(read_hash "$KS/init.d/V00apipv6.sh")" "$legacy_hash" 'restored startup entry must match its backed-up hash'
 [ ! -e "$KS/scripts/apipv6_config.sh" ] || fail 'uninstall left the plugin CLI installed'

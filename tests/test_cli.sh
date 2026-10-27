@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
+. "$ROOT/tests/helpers.sh"
 CONFIG=$ROOT/scripts/apipv6_config.sh
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/apipv6-cli-test.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
@@ -85,18 +86,18 @@ printf '%s' "$out" | grep -q '"temporary":true' || fail 'temporary classificatio
 printf '%s' "$out" | grep -q '"address":"240a:42cc:1001:7141::10","type":"global_unicast","state":"preferred","prefix_length":"64","preferred_lifetime":"7200sec","valid_lifetime":"86400sec","temporary":false' || fail 'mngtmpaddr template was incorrectly classified as a temporary address'
 
 # Runtime mode detection must also find nvram when it is outside PATH.
-NO_NVRAM_MOCKS=$TEMP/mocks-without-nvram
+NO_FIRMWARE_COMMANDS=$TEMP/mocks-without-ip-nvram-dbus
 FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
-mkdir -p "$NO_NVRAM_MOCKS" "$FIRMWARE_SBIN" "$APIPV6_KS_DIR/bin"
-for mock in "$ROOT"/tests/mocks/*; do
-    case "${mock##*/}" in nvram|dbus) continue ;; esac
-    cp "$mock" "$NO_NVRAM_MOCKS/${mock##*/}"
-done
+make_path_without_firmware_commands "$NO_FIRMWARE_COMMANDS"
+mkdir -p "$FIRMWARE_SBIN" "$APIPV6_KS_DIR/bin"
 cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
+cp "$ROOT/tests/mocks/ip" "$FIRMWARE_SBIN/ip"
 cp "$ROOT/tests/mocks/dbus" "$APIPV6_KS_DIR/bin/dbus"
-chmod 755 "$NO_NVRAM_MOCKS"/* "$FIRMWARE_SBIN/nvram" "$APIPV6_KS_DIR/bin/dbus"
-out=$(PATH="$NO_NVRAM_MOCKS:/usr/bin:/bin" \
-    APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" "$CONFIG" status --json)
+chmod 755 "$FIRMWARE_SBIN/nvram" "$FIRMWARE_SBIN/ip" "$APIPV6_KS_DIR/bin/dbus"
+out=$(PATH="$NO_FIRMWARE_COMMANDS" \
+    APIPV6_SYSTEM_PATHS="$FIRMWARE_SBIN" \
+    APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" \
+    APIPV6_IP_SEARCH_DIRS="$FIRMWARE_SBIN" "$CONFIG" status --json)
 assert_health "$out" normal
 assert_field "$out" ap_mode true
 

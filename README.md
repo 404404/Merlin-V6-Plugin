@@ -12,6 +12,13 @@
 - AP 模式通过固件模式字段判断；仅当 `nvram get sw_mode` 为 `3` 且 `nvram get wlc_psta` 为 `0` 时允许修复。
 - 目标故障场景是 AP 自身的 `br0` SLAAC 客户端设置被关闭或覆盖。
 - HND 与 QCA 包包含相同的 Shell 插件文件，仅 `.valid` 平台标记不同。安装时请选择与软件中心平台相符的包。
+- 安装包不含 CPU 架构专用二进制；ARMv7l 固件可运行这些 POSIX Shell 脚本，前提是固件提供所需命令。
+
+## 固件命令要求
+
+安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`、`sha256sum`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。
+
+BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本身不能保证某个 applet 存在。若命令在 PATH 和标准固件目录中都不存在，安装器会报告该命令缺失；可通过 `busybox --list` 查看设备当前 BusyBox 提供的 applet。
 
 插件不适用于需要路由、DHCPv6 Server、RA Server 或 IPv6 转发配置的用途。非 AP 模式仍可查看状态，但修复命令会拒绝写入。
 
@@ -103,7 +110,7 @@ JSON 状态字段包括 `health`、`mode`、`bridge`、`sysctl`、`addresses`、
 
 ## 常见问题
 
-- **离线安装提示缺少 `nvram` 或 `dbus`**：软件中心调用安装脚本时可能没有继承固件或 KoolShare 的命令目录。安装器和运行时会检查 `/usr/sbin`、`/koolshare/bin` 等固件目录；仍报错时，请检查对应可执行文件是否存在。
+- **离线安装提示缺少 `ip`、`nvram` 或 `dbus`**：软件中心调用安装脚本时可能没有继承固件或 KoolShare 的命令目录。入口会补充 `/usr/sbin`、`/sbin`、`/koolshare/bin` 等路径并搜索对应可执行文件；仍报错时，请检查固件是否实际提供该命令。
 - **状态显示不适用**：检查 `nvram get sw_mode` 与 `nvram get wlc_psta`。只有值分别为 `3` 与 `0` 时插件才会写 br0 参数。
 - **参数正常但没有地址**：确认上游 RA 已到达桥接网络；插件不会替上游配置 RA 或 DHCPv6。
 - **地址和默认路由正常但探测失败**：保留探测失败诊断，检查上游策略或 ICMPv6 目标过滤；这不会单独触发修复。
