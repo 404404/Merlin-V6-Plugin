@@ -257,7 +257,7 @@ initialize_setting() {
 
 main() {
     missing_tools=
-    for tool in awk cat chmod cp date df dirname grep mkdir mv rm rmdir sed sh sleep tail tr wc; do
+    for tool in awk cat chmod cp date df dirname grep mkdir mv rm rmdir sed sleep tail tr wc; do
         find_executable "$tool" >/dev/null 2>&1 || missing_tools="$missing_tools $tool"
     done
     setup_ip_path || missing_tools="$missing_tools ip"
@@ -267,6 +267,9 @@ main() {
         say "诊断：当前 PATH=$PATH"
         abort_install "固件缺少必要命令或工具：${missing_tools# }"
     fi
+    # Broadcom firmware also ships a memory utility named sh in /usr/sbin.
+    # Never resolve the shell through PATH (that utility can even exit zero).
+    [ -x /bin/sh ] || abort_install '固件缺少 /bin/sh 解释器。'
 
     [ -d "$SOURCE_DIR" ] || abort_install "找不到安装包目录：$SOURCE_DIR"
     [ -f "$SOURCE_DIR/.valid" ] || abort_install '安装包缺少 .valid 平台标记。'
@@ -290,7 +293,7 @@ main() {
         "$SOURCE_DIR/scripts/apipv6_status.sh" "$SOURCE_DIR/scripts/apipv6_repair.sh" \
         "$SOURCE_DIR/init.d/V99apipv6.sh"
     do
-        sh -n "$file" || abort_install "Shell 语法检查失败：$file"
+        /bin/sh -n "$file" || abort_install "Shell 语法检查失败：$file"
     done
 
     acquire_lock || abort_install '另一个安装任务正在运行。'
@@ -320,7 +323,7 @@ main() {
     install_file "$SOURCE_DIR/config.json.js" "$KS_DIR/config.json.js" 644 || abort_install '安装软件中心元数据失败。'
     install_file "$SOURCE_DIR/init.d/V99apipv6.sh" "$KS_DIR/init.d/V99apipv6.sh" 755 || abort_install '安装 V99 启动入口失败。'
 
-    sh -n "$KS_DIR/scripts/apipv6_config.sh" || abort_install '安装后的主脚本校验失败。'
+    /bin/sh -n "$KS_DIR/scripts/apipv6_config.sh" || abort_install '安装后的主脚本校验失败。'
     initialize_setting apipv6_enabled 0 || abort_install '无法初始化自动修复开关。'
     initialize_setting apipv6_start_delay 30 || abort_install '无法初始化开机延迟。'
     initialize_setting apipv6_health_enabled 0 || abort_install '无法初始化周期检查开关。'
@@ -352,7 +355,7 @@ main() {
     fi
     say "AP IPv6 Manager v$PLUGIN_VERSION 安装成功；自动修复默认关闭，没有修改网络配置。"
     say "升级备份：$BACKUP_DIR"
-    say "手动回滚：sh $KS_DIR/scripts/apipv6_rollback.sh $BACKUP_DIR"
+    say "手动回滚：/bin/sh $KS_DIR/scripts/apipv6_rollback.sh $BACKUP_DIR"
     say '如需旧 V00 启动脚本迁移，请先启用自动修复并确认一次修复成功。'
 }
 

@@ -232,13 +232,14 @@ done
 expect "$task_status" succeeded 'Web repair must finish before reporting success'
 printf '%s' "$task_out" | perl -MJSON::PP -e 'local $/; my $j=decode_json(<STDIN>); exit(($j->{result}{repair_result} // "") eq "success" ? 0 : 1)' || fail 'Web task result was incomplete or unsuccessful'
 
-# KoolShare may supply its response callback as a shell function.
+# CLI output stays JSON even when an unrelated callback function is in scope.
+# The HTTP adapter with a numeric request ID is exercised by test_web_api.js.
 callback_out=$(sh -c '
     core=$1
     shift
     http_response() { printf "callback:%s\n" "$1"; }
     . "$core"
 ' sh "$CONFIG" logs web_submit)
-case "$callback_out" in callback:*) ;; *) fail 'Web response did not invoke the shell callback' ;; esac
+printf '%s' "$callback_out" | perl -MJSON::PP -e 'local $/; my $j=decode_json(<STDIN>); exit(exists $j->{log} ? 0 : 1)' || fail 'CLI log output must be JSON'
 
 printf '%s\n' 'CLI status, classification, repair safety, bounded retry, scheduling, locking, log rotation, and Web task tests passed.'

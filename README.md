@@ -16,7 +16,7 @@
 
 ## 固件命令要求
 
-安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。若设置了 `APIPV6_SYSTEM_PATHS`，其中目录会额外加入 PATH，不会替换固件标准目录。
+安装和运行依赖固件提供 `/bin/sh`、`ip`、`nvram`、KoolShare `dbus`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。Shell 解释器固定为 `/bin/sh`，避免误用 Broadcom 固件中同名的内存工具。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。若设置了 `APIPV6_SYSTEM_PATHS`，其中目录会额外加入 PATH，不会替换固件标准目录。
 
 插件直接检查 PATH 中的可执行文件，不依赖可被裁剪掉的 `command` 内建命令。[Merlin 的 BusyBox 基础配置](https://github.com/RMerl/asuswrt-merlin.ng/blob/main/release/src/router/busybox/config_base) 关闭了 `CONFIG_ASH_CMDCMD`。CI 会编译 BusyBox 1.25.1，关闭该内建，并让全部 Shell 集成测试实际使用这个 ash 及同版常用 applet。
 
@@ -37,6 +37,8 @@ BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本
 
 ## Web 管理
 
+页面沿用 Merlin / KoolShare 的 `state.js` 菜单初始化、顶部栏、侧边栏、标签页、原生表格与按钮，并继承固件的 `sc_skin` 皮肤；不加载 Bootstrap 或覆盖页面全局背景。升级后请强制刷新页面，避免浏览器继续使用旧控制器。
+
 页面为 KoolShare 软件中心的 **AP IPv6 管理**，包含：
 
 - 当前模式、健康状态、首选全球单播地址、地址前缀、RA 默认网关与探测结果。
@@ -44,7 +46,7 @@ BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本
 - 自动修复、开机延迟、周期检查间隔与异常时修复开关。
 - 立即检查、异步手动修复、最近修复结果与插件日志。
 
-页面通过插件自己的 `/_api/` 请求调用与 CLI 相同的脚本。后台修复会轮询任务状态；页面超时或断开时会显示“未确认”，不会把未完成任务显示为成功。
+页面通过插件自己的 `/_api/` 请求调用与 CLI 相同的脚本。后台读取软件中心传入的数字请求编号，加载 `scripts/base.sh`，通过 `http_response` 完成响应；标准输出不能替代这个回调。保存字段使用请求专属暂存键，全部验证通过后才写入正式 DBus 设置。后台修复会轮询任务状态；页面超时或断开时会显示“未确认”，不会把未完成任务显示为成功。
 
 动态值写入 `textContent`，页面不会将路由器返回的数据拼进 HTML。
 
@@ -107,7 +109,7 @@ JSON 状态字段包括 `health`、`mode`、`bridge`、`sysctl`、`addresses`、
 - 回滚命令：
 
   ```sh
-  sh /koolshare/scripts/apipv6_rollback.sh /koolshare/backup/apipv6/upgrade-时间戳-PID
+  /bin/sh /koolshare/scripts/apipv6_rollback.sh /koolshare/backup/apipv6/upgrade-时间戳-PID
   ```
 
 回滚会先停止本插件任务，再恢复文件、DBUS 快照和已迁移的旧入口。回滚操作不会重置网络。
@@ -128,6 +130,7 @@ make all
 sh scripts/check_package.sh
 sh tests/run.sh
 node tests/test_web.js
+node tests/test_web_api.js
 ```
 
 CI 在 Linux Runner 上执行 POSIX sh / BusyBox ash / ShellCheck、Mock 集成测试、前端行为检查、HND/QCA 包结构和 SHA-256 校验，并上传保留 14 天的 `apipv6-packages` Artifact。不会部署到真实路由器。

@@ -50,10 +50,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install test tools
-        run: sudo apt-get update && sudo apt-get install --yes perl coreutils
+        run: sudo apt-get update && sudo apt-get install --yes perl coreutils nodejs curl
 
       - name: Run CLI, repair safety, migration, install, upgrade, rollback, and uninstall tests
         run: sh tests/run.sh
+
+      - name: Test installed Web page through KoolShare HTTP dispatcher and callbacks
+        run: node tests/test_web_api.js
 
   firmware-shell-tests:
     name: Merlin ash compatibility (no command builtin)
@@ -65,7 +68,7 @@ jobs:
         shell: bash
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends build-essential bzip2 ca-certificates curl git perl openssl
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends build-essential bzip2 ca-certificates curl git perl openssl nodejs
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -93,6 +96,7 @@ jobs:
           [ "$probe_rc" -eq 127 ]
           openssl dgst -sha256 /dev/null
           sh tests/run.sh
+          node tests/test_web_api.js
 
   package-build:
     name: Build HND and QCA packages

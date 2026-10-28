@@ -34,6 +34,7 @@ BRIDGE=br0
 PROBE_HOST=2606:4700:4700::1111
 LOG_FILE=$RUN_DIR/apipv6.log
 WEB_SUBMIT=0
+API_REQUEST_ID=
 umask 077
 
 json_string() {
@@ -935,11 +936,21 @@ web_task_status() {
 }
 
 save_web_config() {
-    new_enabled=${apipv6_enabled:-$(setting apipv6_enabled 0)}
-    new_delay=${apipv6_start_delay:-$(setting apipv6_start_delay 30)}
-    new_health=${apipv6_health_enabled:-$(setting apipv6_health_enabled 0)}
-    new_interval=${apipv6_health_interval:-$(setting apipv6_health_interval 15)}
-    new_repair=${apipv6_repair_on_error:-$(setting apipv6_repair_on_error 0)}
+    if [ -n "$API_REQUEST_ID" ]; then
+        # httpdb writes fields to DBus BEFORE invoking this script. Read only
+        # request-scoped staging keys; validate everything before live writes.
+        new_enabled=$(dbus get "apipv6_websubmit_${API_REQUEST_ID}_enabled")
+        new_delay=$(dbus get "apipv6_websubmit_${API_REQUEST_ID}_start_delay")
+        new_health=$(dbus get "apipv6_websubmit_${API_REQUEST_ID}_health_enabled")
+        new_interval=$(dbus get "apipv6_websubmit_${API_REQUEST_ID}_health_interval")
+        new_repair=$(dbus get "apipv6_websubmit_${API_REQUEST_ID}_repair_on_error")
+    else
+        new_enabled=${apipv6_enabled:-$(setting apipv6_enabled 0)}
+        new_delay=${apipv6_start_delay:-$(setting apipv6_start_delay 30)}
+        new_health=${apipv6_health_enabled:-$(setting apipv6_health_enabled 0)}
+        new_interval=${apipv6_health_interval:-$(setting apipv6_health_interval 15)}
+        new_repair=${apipv6_repair_on_error:-$(setting apipv6_repair_on_error 0)}
+    fi
     case "$new_enabled" in 0|1) ;; *) printf '{"ok":false,"error":"apipv6_enabled must be 0 or 1."}\n'; return 1 ;; esac
     case "$new_health" in 0|1) ;; *) printf '{"ok":false,"error":"apipv6_health_enabled must be 0 or 1."}\n'; return 1 ;; esac
     case "$new_repair" in 0|1) ;; *) printf '{"ok":false,"error":"apipv6_repair_on_error must be 0 or 1."}\n'; return 1 ;; esac
@@ -984,12 +995,8 @@ save_web_config() {
 }
 
 emit_web_result() {
-    web_result=$1
-    if [ "$WEB_SUBMIT" -eq 1 ] && type http_response >/dev/null 2>&1; then
-        http_response "$web_result"
-    else
-        printf '%s\n' "$web_result"
-    fi
+    # The API adapter owns the one callback; CLI operations write JSON to stdout.
+    printf '%s\n' "$1"
 }
 
 show_logs() {
@@ -1091,4 +1098,47 @@ main() {
     esac
 }
 
-main "$@"
+api_main() {
+    API_REQUEST_ID=$1
+    [ "${#API_REQUEST_ID}" -le 16 ] || return 1
+    # KoolShare passes ID as argv[1]. base.sh captures it in ID and defines
+    # http_response(), which POSTs the result to httpdb /_resp/ID. Stdout alone
+    # does not complete an /_api request. Keep $1 intact while sourcing it.
+    if [ ! -r "$KS_DIR/scripts/base.sh" ]; then
+        printf '%s\n' 'KoolShare API error: scripts/base.sh is missing.' >&2
+        return 1
+    fi
+    # shellcheck disable=SC1091
+    . "$KS_DIR/scripts/base.sh"
+    ID=$API_REQUEST_ID
+    type http_response >/dev/null 2>&1 || {
+        printf '%s\n' 'KoolShare API error: http_response is unavailable.' >&2
+        return 1
+    }
+    shift
+    case "${1:-}" in
+        status) api_result=$(status_json); api_rc=$? ;;
+        check) api_result=$(check_operation); api_rc=$? ;;
+        save_config|web_repair|web_task|logs|clear_log)
+            api_result=$(main "$@")
+            api_rc=$?
+            ;;
+        *) api_result='{"ok":false,"error":"Unsupported Web operation."}'; api_rc=1 ;;
+    esac
+    for api_field in enabled start_delay health_enabled health_interval repair_on_error; do
+        dbus remove "apipv6_websubmit_${API_REQUEST_ID}_$api_field" >/dev/null 2>&1 || :
+    done
+    # Every allowed operation returns JSON, including unhealthy status and
+    # validation errors. A health exit code must not suppress the HTTP callback.
+    [ -n "$api_result" ] || api_result='{"ok":false,"error":"Empty backend response."}'
+    http_response "$api_result" || {
+        log_message "KoolShare callback failed for request $API_REQUEST_ID."
+        return 1
+    }
+    return "$api_rc"
+}
+
+case "${1:-}" in
+    ''|*[!0-9]*) main "$@" ;;
+    *) api_main "$@" ;;
+esac
