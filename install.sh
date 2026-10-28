@@ -7,6 +7,26 @@ APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
 APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
 PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
+
+# Firmware ash may be built without the optional 'command' builtin.
+# Scan PATH with shell primitives; preserve spaces and avoid pathname expansion.
+find_executable() (
+    remaining_path=$PATH
+    while :; do
+        case "$remaining_path" in
+            *:*) path_dir=${remaining_path%%:*}; remaining_path=${remaining_path#*:}; more=1 ;;
+            *) path_dir=$remaining_path; remaining_path=; more=0 ;;
+        esac
+        [ -n "$path_dir" ] || path_dir=.
+        candidate=$path_dir/$1
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            exit 0
+        fi
+        [ "$more" -eq 1 ] || exit 1
+    done
+)
+
 TMP_ROOT=${APIPV6_TMP_ROOT:-/tmp}
 SOURCE_DIR=${APIPV6_SOURCE_DIR:-$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd)}
 INSTALL_LOCK=$TMP_ROOT/apipv6-install.lock
@@ -146,7 +166,7 @@ install_file() {
 }
 
 resolve_nvram() {
-    nvram_path=$(command -v nvram 2>/dev/null) || nvram_path=
+    nvram_path=$(find_executable nvram 2>/dev/null) || nvram_path=
     if [ -n "$nvram_path" ]; then
         printf '%s\n' "$nvram_path"
         return 0
@@ -169,7 +189,7 @@ resolve_nvram() {
 }
 
 resolve_ip() {
-    ip_path=$(command -v ip 2>/dev/null) || ip_path=
+    ip_path=$(find_executable ip 2>/dev/null) || ip_path=
     if [ -n "$ip_path" ]; then
         printf '%s\n' "$ip_path"
         return 0
@@ -199,7 +219,7 @@ setup_ip_path() {
 }
 
 resolve_dbus() {
-    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    dbus_path=$(find_executable dbus 2>/dev/null) || dbus_path=
     if [ -n "$dbus_path" ]; then
         printf '%s\n' "$dbus_path"
         return 0
@@ -237,8 +257,8 @@ initialize_setting() {
 
 main() {
     missing_tools=
-    for tool in awk cat chmod cp date df dirname grep mkdir mv rm rmdir sed sha256sum sh sleep tail tr wc; do
-        command -v "$tool" >/dev/null 2>&1 || missing_tools="$missing_tools $tool"
+    for tool in awk cat chmod cp date df dirname grep mkdir mv rm rmdir sed sh sleep tail tr wc; do
+        find_executable "$tool" >/dev/null 2>&1 || missing_tools="$missing_tools $tool"
     done
     setup_ip_path || missing_tools="$missing_tools ip"
     setup_dbus_path || missing_tools="$missing_tools dbus"
@@ -318,7 +338,7 @@ main() {
     case "$migration_status" in
         known_pending) say '已备份已知旧 V00 启动脚本；它会保留到新插件启用并通过修复验证。' ;;
         conflict) say '警告：V00apipv6.sh 与已知版本不匹配，按用户脚本处理并保持原样；请查看迁移状态与 SHA-256。' ;;
-        backup_failed) say '警告：旧启动脚本备份失败，原文件保持不变，迁移未执行。' ;;
+        backup_failed) say '警告：旧启动脚本的 SHA-256 校验或备份失败，原文件保持不变，迁移未执行。' ;;
         none|migrated|restored) ;;
         *) say '警告：旧启动脚本状态无法确认；原入口保持原样。' ;;
     esac

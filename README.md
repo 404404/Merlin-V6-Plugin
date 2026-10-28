@@ -16,7 +16,11 @@
 
 ## 固件命令要求
 
-安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`、`sha256sum`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。若设置了 `APIPV6_SYSTEM_PATHS`，其中目录会额外加入 PATH，不会替换固件标准目录。
+安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。若设置了 `APIPV6_SYSTEM_PATHS`，其中目录会额外加入 PATH，不会替换固件标准目录。
+
+插件直接检查 PATH 中的可执行文件，不依赖可被裁剪掉的 `command` 内建命令。[Merlin 的 BusyBox 基础配置](https://github.com/RMerl/asuswrt-merlin.ng/blob/main/release/src/router/busybox/config_base) 关闭了 `CONFIG_ASH_CMDCMD`。CI 会编译 BusyBox 1.25.1，关闭该内建，并让全部 Shell 集成测试实际使用这个 ash 及同版常用 applet。
+
+旧脚本迁移的 SHA-256 校验使用 `sha256sum`，或在该命令缺失时使用 `openssl dgst -sha256`。若没有可用的校验工具、工具执行失败或摘要格式无效，插件保留原 V00 脚本并报告迁移备份失败；其他安装和诊断功能仍可使用。CI 另覆盖只有 OpenSSL、没有 `sha256sum` 的环境。
 
 BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本身不能保证某个 applet 存在。若命令在 PATH 和标准固件目录中都不存在，安装器会报告该命令缺失；可通过 `busybox --list` 查看设备当前 BusyBox 提供的 applet。
 

@@ -7,6 +7,26 @@ APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
 APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
 PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
+
+# Firmware ash may be built without the optional 'command' builtin.
+# Scan PATH with shell primitives; preserve spaces and avoid pathname expansion.
+find_executable() (
+    remaining_path=$PATH
+    while :; do
+        case "$remaining_path" in
+            *:*) path_dir=${remaining_path%%:*}; remaining_path=${remaining_path#*:}; more=1 ;;
+            *) path_dir=$remaining_path; remaining_path=; more=0 ;;
+        esac
+        [ -n "$path_dir" ] || path_dir=.
+        candidate=$path_dir/$1
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            exit 0
+        fi
+        [ "$more" -eq 1 ] || exit 1
+    done
+)
+
 SYSCTL_ROOT=${APIPV6_SYSCTL_ROOT:-/proc/sys/net/ipv6/conf}
 RUN_DIR=${APIPV6_RUN_DIR:-$KS_DIR/var/apipv6}
 CONFIG_FILE=${APIPV6_CONFIG_FILE:-$KS_DIR/configs/apipv6.conf}
@@ -39,7 +59,7 @@ setting() {
     setting_key=$1
     setting_default=$2
     setting_value=
-    if command -v dbus >/dev/null 2>&1; then
+    if find_executable dbus >/dev/null 2>&1; then
         setting_value=$(dbus get "$setting_key" 2>/dev/null) || setting_value=
     fi
     if [ -z "$setting_value" ] && [ -r "$CONFIG_FILE" ]; then
@@ -54,7 +74,7 @@ set_setting() {
     set_value=$2
     case "$set_key" in apipv6_*) ;; *) return 1 ;; esac
     case "$set_value" in *[!a-zA-Z0-9_.:-]*) return 1 ;; esac
-    if command -v dbus >/dev/null 2>&1; then
+    if find_executable dbus >/dev/null 2>&1; then
         dbus set "$set_key=$set_value" || return 1
         dbus save >/dev/null 2>&1 || :
         return 0
@@ -120,7 +140,7 @@ read_sysctl() {
 }
 
 resolve_nvram() {
-    nvram_path=$(command -v nvram 2>/dev/null) || nvram_path=
+    nvram_path=$(find_executable nvram 2>/dev/null) || nvram_path=
     if [ -n "$nvram_path" ]; then
         printf '%s\n' "$nvram_path"
         return 0
@@ -143,7 +163,7 @@ resolve_nvram() {
 }
 
 resolve_dbus() {
-    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    dbus_path=$(find_executable dbus 2>/dev/null) || dbus_path=
     if [ -n "$dbus_path" ]; then
         printf '%s\n' "$dbus_path"
         return 0
@@ -166,7 +186,7 @@ resolve_dbus() {
 }
 
 resolve_ip() {
-    ip_path=$(command -v ip 2>/dev/null) || ip_path=
+    ip_path=$(find_executable ip 2>/dev/null) || ip_path=
     if [ -n "$ip_path" ]; then
         printf '%s\n' "$ip_path"
         return 0
@@ -341,7 +361,7 @@ collect_status() {
     [ "$MODE" = 3 ] && [ "$WLC_PSTA" = 0 ] && AP_MODE=1
 
     IP_AVAILABLE=0
-    command -v ip >/dev/null 2>&1 && IP_AVAILABLE=1
+    find_executable ip >/dev/null 2>&1 && IP_AVAILABLE=1
     BRIDGE_EXISTS=0
     BRIDGE_UP=0
     ADDRESS_READ_OK=0
@@ -436,13 +456,13 @@ EOF
         HEALTH=route_error
         HEALTH_REASON='A preferred global unicast IPv6 address exists, but no IPv6 default route is present.'
     else
-        if command -v ping6 >/dev/null 2>&1; then
+        if find_executable ping6 >/dev/null 2>&1; then
             if ping6 -c 1 -W 2 "$PROBE_HOST" >/dev/null 2>&1; then
                 PUBLIC_CONNECTIVITY=success
             else
                 PUBLIC_CONNECTIVITY=failure
             fi
-        elif command -v ping >/dev/null 2>&1; then
+        elif find_executable ping >/dev/null 2>&1; then
             if ping -6 -c 1 -W 2 "$PROBE_HOST" >/dev/null 2>&1; then
                 PUBLIC_CONNECTIVITY=success
             else
@@ -625,7 +645,7 @@ repair_operation() {
     if ! is_ap_mode; then
         repair_result=not_applicable
         repair_message='Refusing to change IPv6 settings because AP mode is not confirmed (sw_mode must be 3 and wlc_psta must be off).'
-    elif ! command -v ip >/dev/null 2>&1 || ! interface_is_up; then
+    elif ! find_executable ip >/dev/null 2>&1 || ! interface_is_up; then
         repair_result=error
         repair_message='Refusing to change IPv6 settings because br0 is unavailable or not UP.'
     elif [ ! -w "$SYSCTL_ROOT/$BRIDGE/disable_ipv6" ] ||
@@ -735,7 +755,7 @@ cron_update() {
     health_enabled=$(setting apipv6_health_enabled 0)
     interval=$(setting apipv6_health_interval 15)
     valid_uint "$interval" 5 60 || interval=15
-    if ! command -v cru >/dev/null 2>&1; then
+    if ! find_executable cru >/dev/null 2>&1; then
         [ "$health_enabled" = 0 ] || return 1
         return 0
     fi
@@ -784,7 +804,7 @@ stop_operation() {
         printf '{"ok":false,"error":"Unable to save apipv6_health_enabled."}\n'
         return 1
     }
-    if command -v cru >/dev/null 2>&1; then cru d apipv6_health >/dev/null 2>&1 || :; fi
+    if find_executable cru >/dev/null 2>&1; then cru d apipv6_health >/dev/null 2>&1 || :; fi
     terminate_plugin_process "$RUN_DIR/boot-launch.pid" "$KS_DIR/scripts/apipv6_config.sh boot"
     terminate_plugin_process "$RUN_DIR/task/pid" "$KS_DIR/scripts/apipv6_config.sh __web_repair"
     log_message 'Automatic AP IPv6 management disabled; system IPv6 settings were left unchanged.'
@@ -814,7 +834,7 @@ boot_operation() {
             log_message 'Boot repair stopped: device is not in AP mode.'
             break
         fi
-        if ! command -v ip >/dev/null 2>&1 || ! interface_is_up; then
+        if ! find_executable ip >/dev/null 2>&1 || ! interface_is_up; then
             log_message "Boot repair attempt $attempt skipped: br0 is not UP yet."
         else
             repair_operation >/dev/null
@@ -965,7 +985,7 @@ save_web_config() {
 
 emit_web_result() {
     web_result=$1
-    if [ "$WEB_SUBMIT" -eq 1 ] && command -v http_response >/dev/null 2>&1; then
+    if [ "$WEB_SUBMIT" -eq 1 ] && type http_response >/dev/null 2>&1; then
         http_response "$web_result"
     else
         printf '%s\n' "$web_result"

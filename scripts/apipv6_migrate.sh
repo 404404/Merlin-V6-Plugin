@@ -6,14 +6,45 @@ APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
 APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
 PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
+
+# Firmware ash may be built without the optional 'command' builtin.
+# Scan PATH with shell primitives; preserve spaces and avoid pathname expansion.
+find_executable() (
+    remaining_path=$PATH
+    while :; do
+        case "$remaining_path" in
+            *:*) path_dir=${remaining_path%%:*}; remaining_path=${remaining_path#*:}; more=1 ;;
+            *) path_dir=$remaining_path; remaining_path=; more=0 ;;
+        esac
+        [ -n "$path_dir" ] || path_dir=.
+        candidate=$path_dir/$1
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            exit 0
+        fi
+        [ "$more" -eq 1 ] || exit 1
+    done
+)
+
 RUN_DIR=${APIPV6_RUN_DIR:-$KS_DIR/var/apipv6}
 LEGACY=$KS_DIR/init.d/V00apipv6.sh
 STATE=$RUN_DIR/migration-state
 
-hash_file() {
-    [ -f "$1" ] || return 1
-    sha256sum "$1" 2>/dev/null | awk 'NR == 1 { print $1 }'
-}
+hash_file() (
+    [ -f "$1" ] || exit 1
+    if hash_tool=$(find_executable sha256sum); then
+        hash_output=$("$hash_tool" "$1" 2>/dev/null) || exit 1
+        digest=${hash_output%% *}
+    elif hash_tool=$(find_executable openssl); then
+        hash_output=$("$hash_tool" dgst -sha256 "$1" 2>/dev/null) || exit 1
+        digest=${hash_output##* }
+    else
+        exit 1
+    fi
+    case "$digest" in ''|*[!0-9a-fA-F]*) exit 1 ;; esac
+    [ "${#digest}" -eq 64 ] || exit 1
+    printf '%s\n' "$digest" | tr 'A-F' 'a-f'
+)
 
 write_state() {
     state_tmp=$STATE.tmp.$$

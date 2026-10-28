@@ -40,7 +40,7 @@ copy_source() {
 install_from() {
     APIPV6_SOURCE_DIR=$1 sh "$1/install.sh"
 }
-read_hash() { sha256sum "$1" | awk '{print $1}'; }
+read_hash() { test_hash "$1"; }
 
 copy_source "$SOURCE"
 mkdir -p "$KS/init.d" "$APIPV6_SYSCTL_ROOT/br0" "$APIPV6_SYSCTL_ROOT/eth0" "$APIPV6_SYSCTL_ROOT/all" "$TEMP/proc/sys/net/ipv4"

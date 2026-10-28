@@ -6,13 +6,33 @@ APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
 APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
 PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
+
+# Firmware ash may be built without the optional 'command' builtin.
+# Scan PATH with shell primitives; preserve spaces and avoid pathname expansion.
+find_executable() (
+    remaining_path=$PATH
+    while :; do
+        case "$remaining_path" in
+            *:*) path_dir=${remaining_path%%:*}; remaining_path=${remaining_path#*:}; more=1 ;;
+            *) path_dir=$remaining_path; remaining_path=; more=0 ;;
+        esac
+        [ -n "$path_dir" ] || path_dir=.
+        candidate=$path_dir/$1
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            exit 0
+        fi
+        [ "$more" -eq 1 ] || exit 1
+    done
+)
+
 CONFIG=$KS_DIR/scripts/apipv6_config.sh
 MIGRATE=$KS_DIR/scripts/apipv6_migrate.sh
 
 say() { printf '%s\n' "$*"; }
 
 resolve_dbus() {
-    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    dbus_path=$(find_executable dbus 2>/dev/null) || dbus_path=
     if [ -n "$dbus_path" ]; then
         printf '%s\n' "$dbus_path"
         return 0
@@ -45,7 +65,7 @@ main() {
     setup_dbus_path || :
     if [ -x "$CONFIG" ]; then
         "$CONFIG" stop >/dev/null 2>&1 || say '警告：无法停止自动管理任务；继续清理插件文件。'
-    elif command -v cru >/dev/null 2>&1; then
+    elif find_executable cru >/dev/null 2>&1; then
         cru d apipv6_health >/dev/null 2>&1 || :
     fi
 
@@ -69,7 +89,7 @@ main() {
         rm -f "$file" || say "警告：无法删除 $file"
     done
 
-    if command -v dbus >/dev/null 2>&1; then
+    if find_executable dbus >/dev/null 2>&1; then
         for key in \
             softcenter_module_apipv6_version \
             softcenter_module_apipv6_install \

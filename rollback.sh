@@ -6,10 +6,30 @@ APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
 APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
 PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
+
+# Firmware ash may be built without the optional 'command' builtin.
+# Scan PATH with shell primitives; preserve spaces and avoid pathname expansion.
+find_executable() (
+    remaining_path=$PATH
+    while :; do
+        case "$remaining_path" in
+            *:*) path_dir=${remaining_path%%:*}; remaining_path=${remaining_path#*:}; more=1 ;;
+            *) path_dir=$remaining_path; remaining_path=; more=0 ;;
+        esac
+        [ -n "$path_dir" ] || path_dir=.
+        candidate=$path_dir/$1
+        if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            exit 0
+        fi
+        [ "$more" -eq 1 ] || exit 1
+    done
+)
+
 BACKUP_DIR=${1:-}
 
 resolve_dbus() {
-    dbus_path=$(command -v dbus 2>/dev/null) || dbus_path=
+    dbus_path=$(find_executable dbus 2>/dev/null) || dbus_path=
     if [ -n "$dbus_path" ]; then
         printf '%s\n' "$dbus_path"
         return 0
@@ -100,7 +120,7 @@ main() {
 
     if [ -x "$KS_DIR/scripts/apipv6_config.sh" ]; then
         "$KS_DIR/scripts/apipv6_config.sh" stop >/dev/null 2>&1 || :
-    elif command -v cru >/dev/null 2>&1; then
+    elif find_executable cru >/dev/null 2>&1; then
         cru d apipv6_health >/dev/null 2>&1 || :
     fi
     if [ -x "$KS_DIR/scripts/apipv6_migrate.sh" ]; then
@@ -110,7 +130,7 @@ main() {
         }
     fi
     restore_files || { printf '%s\n' 'File rollback failed; inspect the backup manifest and file permissions.' >&2; return 1; }
-    if command -v dbus >/dev/null 2>&1; then restore_dbus || return 1; fi
+    if find_executable dbus >/dev/null 2>&1; then restore_dbus || return 1; fi
     printf 'Rollback restored the prior plugin files and DBUS settings from %s.\n' "$BACKUP_DIR"
     printf '%s\n' 'IPv6 addresses and routes were left unchanged.'
 }

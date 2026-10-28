@@ -55,9 +55,47 @@ jobs:
       - name: Run CLI, repair safety, migration, install, upgrade, rollback, and uninstall tests
         run: sh tests/run.sh
 
+  firmware-shell-tests:
+    name: Merlin ash compatibility (no command builtin)
+    needs: static-checks
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Install isolated build and test tools
+        shell: bash
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends build-essential bzip2 ca-certificates curl git perl openssl
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Merlin-era ash without command builtin
+        shell: bash
+        run: sh tests/build_firmware_shell.sh /opt/apipv6-firmware-shell
+
+      - name: Run complete suite using firmware ash, BusyBox applets, and OpenSSL-only hashing
+        shell: bash
+        run: |
+          set -eu
+          ln -sf /opt/apipv6-firmware-shell/busybox /bin/sh
+          for applet in awk cat chmod cp date df dirname echo grep mkdir mv printf rm rmdir sed sleep tail test '[' tr wc; do
+            ln -sf /opt/apipv6-firmware-shell/busybox "/usr/bin/$applet"
+          done
+          mv /usr/bin/sha256sum /opt/apipv6-firmware-shell/host-sha256sum
+          [ ! -e /bin/sha256sum ]
+          [ ! -e /usr/bin/sha256sum ]
+          set +e
+          sh -c 'command -v date' >/dev/null 2>&1
+          probe_rc=$?
+          set -e
+          [ "$probe_rc" -eq 127 ]
+          openssl dgst -sha256 /dev/null
+          sh tests/run.sh
+
   package-build:
     name: Build HND and QCA packages
-    needs: integration-tests
+    needs: [integration-tests, firmware-shell-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

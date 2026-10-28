@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
+. "$ROOT/tests/helpers.sh"
 MIGRATE=$ROOT/scripts/apipv6_migrate.sh
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/apipv6-migrate-test.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
@@ -19,7 +20,7 @@ echo 1 > /proc/sys/net/ipv6/conf/br0/autoconf
 echo 2 > /proc/sys/net/ipv6/conf/br0/accept_ra
 EOF
 chmod 755 "$APIPV6_KS_DIR/init.d/V00apipv6.sh"
-known_hash=$(sha256sum "$APIPV6_KS_DIR/init.d/V00apipv6.sh" | awk '{print $1}')
+known_hash=$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")
 "$MIGRATE" inspect
 grep -q '^status=known_pending$' "$APIPV6_RUN_DIR/migration-state" || fail 'strictly recognized legacy script should be pending'
 grep -q "^sha256=$known_hash$" "$APIPV6_RUN_DIR/migration-state" || fail 'legacy SHA-256 was not recorded'
@@ -42,11 +43,11 @@ echo 1 > /proc/sys/net/ipv6/conf/br0/autoconf
 echo 2 > /proc/sys/net/ipv6/conf/br0/accept_ra
 ip -6 route flush default
 EOF
-custom_hash=$(sha256sum "$APIPV6_KS_DIR/init.d/V00apipv6.sh" | awk '{print $1}')
+custom_hash=$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")
 "$MIGRATE" inspect
 grep -q '^status=conflict$' "$APIPV6_RUN_DIR/migration-state" || fail 'custom script should be marked as a conflict'
 "$MIGRATE" deactivate >/dev/null 2>&1 && fail 'custom script was accepted for migration'
-expect_hash=$(sha256sum "$APIPV6_KS_DIR/init.d/V00apipv6.sh" | awk '{print $1}')
+expect_hash=$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")
 [ "$expect_hash" = "$custom_hash" ] || fail 'custom script changed during migration inspection'
 "$MIGRATE" restore >/dev/null 2>&1 && fail 'custom script conflict should prevent automatic restore'
 
@@ -59,10 +60,26 @@ echo 1 > /proc/sys/net/ipv6/conf/br0/autoconf
 echo 2 > /proc/sys/net/ipv6/conf/br0/accept_ra
 EOF
 chmod 755 "$APIPV6_KS_DIR/init.d/V00apipv6.sh"
-backup_failure_hash=$(sha256sum "$APIPV6_KS_DIR/init.d/V00apipv6.sh" | awk '{print $1}')
+backup_failure_hash=$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")
 printf 'cannot-create-backup\n' > "$APIPV6_KS_DIR/backup"
 "$MIGRATE" inspect >/dev/null 2>&1 && fail 'migration unexpectedly succeeded when backup root was a file'
 grep -q '^status=backup_failed$' "$APIPV6_RUN_DIR/migration-state" || fail 'backup failure state was not recorded'
-[ "$(sha256sum "$APIPV6_KS_DIR/init.d/V00apipv6.sh" | awk '{print $1}')" = "$backup_failure_hash" ] || fail 'backup failure modified the original script'
+[ "$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")" = "$backup_failure_hash" ] || fail 'backup failure modified the original script'
+
+# A failed or malformed SHA-256 provider must never authorize migration.
+rm -f "$APIPV6_KS_DIR/backup"
+mkdir -p "$TEMP/hash-tools"
+cat > "$TEMP/hash-tools/sha256sum" <<'EOF'
+#!/bin/sh
+[ "${MOCK_HASH_FAILURE:-0}" = 1 ] && exit 1
+printf '%s\n' 'invalid-digest'
+EOF
+chmod 755 "$TEMP/hash-tools/sha256sum"
+for hash_failure in 0 1; do
+    PATH="$TEMP/hash-tools:$PATH" MOCK_HASH_FAILURE=$hash_failure "$MIGRATE" inspect >/dev/null 2>&1 &&
+        fail 'a failed/malformed hash was accepted for migration'
+    grep -q '^status=backup_failed$' "$APIPV6_RUN_DIR/migration-state" || fail 'hash failure state was not recorded'
+    [ "$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")" = "$backup_failure_hash" ] || fail 'hash failure modified the original script'
+done
 
 printf '%s\n' 'Legacy migration tests passed: absent, strict match, hash backup, deactivation, restore, custom conflict, and backup failure.'
