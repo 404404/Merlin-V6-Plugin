@@ -132,12 +132,14 @@ read_state_value() {
 read_sysctl() {
     sysctl_name=$1
     sysctl_file=$SYSCTL_ROOT/$BRIDGE/$sysctl_name
-    if [ -r "$sysctl_file" ]; then
-        IFS= read -r sysctl_value < "$sysctl_file" || sysctl_value=
-        printf '%s' "$sysctl_value"
-    else
-        printf 'unknown'
+    # Some firmware procfs entries have no final newline. ash read returns
+    # nonzero at EOF even when it has read the value; never discard that value.
+    if [ -r "$sysctl_file" ] && sysctl_value=$(cat "$sysctl_file" 2>/dev/null); then
+        case "$sysctl_value" in
+            0|1|2) printf '%s' "$sysctl_value"; return 0 ;;
+        esac
     fi
+    printf 'unknown'
 }
 
 resolve_nvram() {
@@ -649,6 +651,9 @@ repair_operation() {
     elif ! find_executable ip >/dev/null 2>&1 || ! interface_is_up; then
         repair_result=error
         repair_message='Refusing to change IPv6 settings because br0 is unavailable or not UP.'
+    elif [ "$before_disable" = unknown ] || [ "$before_autoconf" = unknown ] || [ "$before_accept_ra" = unknown ]; then
+        repair_result=error
+        repair_message='Refusing to change IPv6 settings because the current br0 sysctl values could not be read.'
     elif [ ! -w "$SYSCTL_ROOT/$BRIDGE/disable_ipv6" ] ||
         [ ! -w "$SYSCTL_ROOT/$BRIDGE/autoconf" ] ||
         [ ! -w "$SYSCTL_ROOT/$BRIDGE/accept_ra" ]; then
@@ -1098,6 +1103,22 @@ main() {
     esac
 }
 
+# Only ASCII hex crosses httpdb's legacy {"result":"%s"} envelope. That
+# implementation does not escape quotes/newlines. awk is already required;
+# do not add a dependency on base64, od, jq, or a firmware-specific helper.
+encode_web_response() {
+    LC_ALL=C awk '
+        BEGIN {
+            for (i=1; i<256; i++) byte[sprintf("%c", i)]=i
+            printf "apipv6-hex-v1:"
+        }
+        {
+            if (NR>1) printf "0a"
+            for (i=1; i<=length($0); i++) printf "%02x", byte[substr($0,i,1)]
+        }
+    '
+}
+
 api_main() {
     API_REQUEST_ID=$1
     [ "${#API_REQUEST_ID}" -le 16 ] || return 1
@@ -1131,10 +1152,22 @@ api_main() {
     # Every allowed operation returns JSON, including unhealthy status and
     # validation errors. A health exit code must not suppress the HTTP callback.
     [ -n "$api_result" ] || api_result='{"ok":false,"error":"Empty backend response."}'
-    http_response "$api_result" || {
+    # curl -d @file avoids the kernel's per-argument limit for large log JSON.
+    # base.sh still owns the callback endpoint and request ID.
+    wire_dir=$RUN_DIR/response-$API_REQUEST_ID-$$
+    mkdir -p "$RUN_DIR" && mkdir -m 700 "$wire_dir" || return 1
+    if ! printf '%s' "$api_result" | encode_web_response > "$wire_dir/body"; then
+        rm -f "$wire_dir/body"; rmdir "$wire_dir" 2>/dev/null || :
+        log_message "KoolShare response encoding failed for request $API_REQUEST_ID."
+        return 1
+    fi
+    http_response "@$wire_dir/body"
+    callback_rc=$?
+    rm -f "$wire_dir/body"; rmdir "$wire_dir" 2>/dev/null || :
+    if [ "$callback_rc" -ne 0 ]; then
         log_message "KoolShare callback failed for request $API_REQUEST_ID."
         return 1
-    }
+    fi
     return "$api_rc"
 }
 

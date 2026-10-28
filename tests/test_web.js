@@ -65,6 +65,11 @@ vm.runInNewContext(controller, context);
 const hooks = window.apipv6TestHooks;
 assert.strictEqual(hooks.parseApiResponse({ result: "{\"ok\":true}" }).ok, true, "API JSON strings are decoded");
 assert.strictEqual(hooks.parseApiResponse({ result: { ok: true } }).ok, true, "API JSON objects are retained");
+const wireValue = { ok: true, log: '中文 "quote" \\ path\r\nnext\tline' };
+const encoded = "apipv6-hex-v1:" + Buffer.from(JSON.stringify(wireValue), "utf8").toString("hex");
+assert.deepStrictEqual(JSON.parse(JSON.stringify(hooks.parseApiResponse(JSON.parse('{"result":"' + encoded + '"}')))), wireValue, "legacy raw envelope safely carries UTF-8 JSON");
+assert.throws(() => JSON.parse('{"result":"' + JSON.stringify(wireValue) + '"}'), "RC7 raw JSON breaks the actual httpdb envelope");
+for (const value of ["apipv6-hex-v1:", "apipv6-hex-v1:a", "apipv6-hex-v1:zz", "apipv6-hex-v1:ff"]) assert(hooks.parseApiResponse({ result: value }).error, "malformed encoded response is rejected");
 assert(hooks.parseApiResponse({ result: -2 }).error, "httpdb method-not-found codes are errors");
 assert(hooks.parseApiResponse({ result: "" }).error, "empty backend responses are errors");
 assert.strictEqual(hooks.statusClass("normal"), "state-normal", "normal status uses its fixed class");
@@ -96,5 +101,5 @@ Object.keys(save.fields).forEach(key => assert(key.startsWith("apipv6_websubmit_
 requests[2].status = 200;
 requests[2].responseText = "not JSON";
 requests[2].onload();
-assert(document.getElementById("apipv6-message").textContent.includes("无效响应"));
+assert(document.getElementById("apipv6-message").textContent.includes("HTTP 200"));
 console.log("Web controller syntax, API parsing, safe text rendering, request scoping, timeout and invalid-response handling passed.");

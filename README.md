@@ -138,3 +138,9 @@ CI 在 Linux Runner 上执行 POSIX sh / BusyBox ash / ShellCheck、Mock 集成�
 ## RT-AX56U 实机验收
 
 验收命令、冷启动步骤、迁移与回滚步骤见 [docs/AX56U-ACCEPTANCE.md](docs/AX56U-ACCEPTANCE.md)。该过程尚未在真实 RT-AX56U 上执行。
+
+### 旧 httpdb 响应兼容（RC8）
+
+旧软件中心会直接拼接 `{"result":"%s"}`，不能直接传入含双引号的 JSON。插件在 HTTP 回调中使用带版本标记的 ASCII 十六进制载荷，页面验证并还原 UTF-8 JSON；CLI 输出仍是 JSON。编码仅使用已要求的 awk，不依赖 base64、od 或 jq。响应体通过临时文件提交，回调完成后删除。
+
+部分固件的 sysctl 文件不带末尾换行；读取不会再因 EOF 丢掉数值。读取失败或内容为空时显示检测错误并拒绝修复写入。升级日志显示保留的实际开关状态；未识别 V00 的路径和 SHA-256 会打印出来，需要人工核对，插件不会覆盖它。

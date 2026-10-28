@@ -31,6 +31,8 @@ cmp -s "$APIPV6_KS_DIR/init.d/V00apipv6.sh" "$backup_dir/V00apipv6.sh" || fail '
 "$MIGRATE" deactivate >/dev/null
 [ ! -e "$APIPV6_KS_DIR/init.d/V00apipv6.sh" ] || fail 'known legacy entry was not deactivated'
 [ -f "$backup_dir/V00apipv6.sh.migrated" ] || fail 'migrated original was not retained'
+"$MIGRATE" inspect
+grep -q '^status=migrated$' "$APIPV6_RUN_DIR/migration-state" || fail 'inspection must preserve the record for a script moved by this plugin'
 "$MIGRATE" restore
 cmp -s "$APIPV6_KS_DIR/init.d/V00apipv6.sh" "$backup_dir/V00apipv6.sh" || fail 'migrated startup script was not restored'
 grep -q '^status=restored$' "$APIPV6_RUN_DIR/migration-state" || fail 'restore state was not recorded'
@@ -50,6 +52,9 @@ grep -q '^status=conflict$' "$APIPV6_RUN_DIR/migration-state" || fail 'custom sc
 expect_hash=$(test_hash "$APIPV6_KS_DIR/init.d/V00apipv6.sh")
 [ "$expect_hash" = "$custom_hash" ] || fail 'custom script changed during migration inspection'
 "$MIGRATE" restore >/dev/null 2>&1 && fail 'custom script conflict should prevent automatic restore'
+rm -f "$APIPV6_KS_DIR/init.d/V00apipv6.sh"
+"$MIGRATE" inspect
+grep -q '^status=none$' "$APIPV6_RUN_DIR/migration-state" || fail 'removed custom scripts must not keep stale conflict warnings'
 
 # A backup failure leaves the original path and bytes in place.
 rm -rf "$APIPV6_KS_DIR/backup"

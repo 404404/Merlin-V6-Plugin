@@ -93,7 +93,9 @@ inspect_legacy() {
     if [ ! -e "$LEGACY" ] && [ ! -L "$LEGACY" ]; then
         prior_status=$(state_value status)
         case "$prior_status" in
-            migrated|known_pending|restored|conflict|backup_failed) return 0 ;;
+            # Only a file moved by this plugin needs a retained restore record.
+            # Removed user files must not leave stale conflict warnings forever.
+            migrated) return 0 ;;
         esac
         write_state none '' ''
         return $?

@@ -79,6 +79,26 @@ assert_field "$out" preferred_ipv6 '240a:42cc:1001:7141::10'
 assert_field "$out" prefix '240a:42cc:1001:7141:0:0:0:0/64'
 assert_field "$out" default_route true
 assert_field "$out" default_gateway 'fe80::abcd'
+# Firmware procfs may return a value without a final newline. read(1) EOF is
+# not a missing value; empty/malformed values must instead fail detection.
+printf 0 > "$APIPV6_SYSCTL_ROOT/br0/disable_ipv6"
+printf 1 > "$APIPV6_SYSCTL_ROOT/br0/autoconf"
+printf 2 > "$APIPV6_SYSCTL_ROOT/br0/accept_ra"
+out=$("$CONFIG" status --json)
+assert_health "$out" normal
+assert_field "$out" sysctl.disable_ipv6 0
+assert_field "$out" sysctl.autoconf 1
+assert_field "$out" sysctl.accept_ra 2
+for invalid_sysctl in '' invalid; do
+    printf '%s' "$invalid_sysctl" > "$APIPV6_SYSCTL_ROOT/br0/disable_ipv6"
+    out=$("$CONFIG" status --json)
+    assert_health "$out" detection_error
+    assert_field "$out" sysctl.disable_ipv6 unknown
+    out=$(run_rc 3 "$CONFIG" repair)
+    expect "$(cat "$APIPV6_SYSCTL_ROOT/br0/disable_ipv6")" "$invalid_sysctl" 'unreadable sysctl must not authorize repair writes'
+done
+write_sysctls 0 1 2
+out=$("$CONFIG" status --json)
 printf '%s' "$out" | grep -q '"state":"deprecated"' || fail 'deprecated address missing from state JSON'
 printf '%s' "$out" | grep -q '"type":"ula"' || fail 'ULA classification missing'
 printf '%s' "$out" | grep -q '"address":"feb1::5678","type":"link_local"' || fail 'the full fe80::/10 link-local range should be recognized'

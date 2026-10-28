@@ -63,6 +63,13 @@
         var value = raw;
         if (value && Object.prototype.hasOwnProperty.call(value, "result")) value = value.result;
         if (typeof value === "string") {
+            var prefix = "apipv6-hex-v1:";
+            if (value.indexOf(prefix) === 0) {
+                var encoded = value.slice(prefix.length);
+                if (!encoded || encoded.length % 2 || /[^0-9a-f]/i.test(encoded)) return { error: "插件响应编码无效，请刷新页面后重试。" };
+                try { value = decodeURIComponent(encoded.replace(/../g, "%$&")); }
+                catch (ignoreEncoding) { return { error: "插件响应字符编码无效。" }; }
+            }
             try { value = JSON.parse(value); } catch (ignore) { return { error: value || "Empty response" }; }
         }
         if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -92,7 +99,7 @@
         xhr.onload = function () {
             var raw;
             try { raw = JSON.parse(xhr.responseText); }
-            catch (ignore) { complete({ error: "后端返回了无效响应，请检查插件日志。" }, true); return; }
+            catch (ignore) { complete({ error: "软件中心返回的响应不是有效 JSON（HTTP " + xhr.status + "）；请确认升级后已强制刷新页面。" }, true); return; }
             complete(parseApiResponse(raw), xhr.status < 200 || xhr.status >= 300);
         };
         xhr.onerror = function () { complete({ error: "请求失败，请检查连接后重试。" }, true); };

@@ -94,6 +94,9 @@ dbus set apipv6_start_delay=77
 install_from "$SOURCE" >/dev/null
 expect "$(dbus get apipv6_enabled)" 1 'upgrade must preserve automatic repair setting'
 expect "$(dbus get apipv6_start_delay)" 77 'upgrade must preserve start delay'
+upgrade_log=$(install_from "$SOURCE")
+printf '%s' "$upgrade_log" | grep -q '开机自动修复已启用' || fail 'upgrade log must show the preserved enabled setting'
+printf '%s' "$upgrade_log" | grep -q '自动修复默认关闭' && fail 'upgrade must not claim its preserved setting is off'
 
 # A failure after files were copied restores overwritten files and DBUS values.
 copy_source "$SOURCE2"
@@ -151,7 +154,10 @@ echo 2 > /proc/sys/net/ipv6/conf/br0/accept_ra
 echo 'user-owned extra action'
 EOF
 custom_hash=$(read_hash "$KS/init.d/V00apipv6.sh")
-install_from "$SOURCE" >/dev/null
+custom_install_log=$(install_from "$SOURCE")
+printf '%s' "$custom_install_log" | grep -q '这不是安装失败' || fail 'custom V00 log must distinguish preservation from installation failure'
+printf '%s' "$custom_install_log" | grep -q '不会因启用自动修复而自动迁移' || fail 'custom V00 must not be promised automatic migration'
+printf '%s' "$custom_install_log" | grep -q "$custom_hash" || fail 'custom V00 log must include its SHA-256'
 grep -q '^status=conflict$' "$APIPV6_RUN_DIR/migration-state" || fail 'custom legacy script was not reported as a conflict'
 expect "$(read_hash "$KS/init.d/V00apipv6.sh")" "$custom_hash" 'installer overwrote a custom startup script'
 sh "$KS/scripts/apipv6_uninstall.sh" >/dev/null

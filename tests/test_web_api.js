@@ -34,6 +34,13 @@ const processes = [];
 const clients = new Set();
 const timers = new Set();
 let origin;
+let envelopeMode = "legacy";
+function decodeWire(value) {
+    assert(value.startsWith("apipv6-hex-v1:"), "backend sends the versioned ASCII wire format");
+    const encoded = value.slice("apipv6-hex-v1:".length);
+    assert(encoded.length > 0 && encoded.length % 2 === 0 && /^[0-9a-f]+$/.test(encoded));
+    return JSON.parse(Buffer.from(encoded, "hex").toString("utf8"));
+}
 const server = http.createServer(async (req, res) => {
     let body = "";
     for await (const chunk of req) body += chunk;
@@ -44,9 +51,12 @@ const server = http.createServer(async (req, res) => {
         if (!reply) { res.writeHead(404).end(); return; }
         pending.delete(id);
         clearTimeout(reply.timer);
-        // httpdb wraps callback text in the result field of the original request.
+        // httpdb src/http.c show_shell_resp uses {"result": "%s"} without
+        // escaping. JSON.stringify here previously hid the real firmware bug.
+        const decoded = decodeWire(body);
+        assert(decoded && typeof decoded === "object");
         reply.res.writeHead(200, { "Content-Type": "application/json" });
-        reply.res.end(JSON.stringify({ id: Number(id), result: body }));
+        reply.res.end(envelopeMode === "escaped" ? JSON.stringify({ result: body }) : '{"result": "' + body + '"}');
         res.writeHead(200).end("OK");
         return;
     }
@@ -54,7 +64,7 @@ const server = http.createServer(async (req, res) => {
     try {
         const payload = JSON.parse(body);
         assert.strictEqual(payload.method, "apipv6_config.sh");
-        assert(Number.isSafeInteger(payload.id) && payload.id >= 0);
+        assert(Number.isSafeInteger(payload.id) && payload.id >= 0 && payload.id < 100000000);
         const id = String(payload.id);
         assert(!pending.has(id), "request IDs must be unique");
         requests.push(payload);
@@ -99,14 +109,14 @@ async function until(predicate, label) {
 }
 async function request(params, fields = {}, extraEnv = {}) {
     Object.assign(env, extraEnv);
-    const id = 100000000 + requests.length;
+    const id = 70000000 + requests.length;
     const staged = {};
     for (const [key, value] of Object.entries(fields)) staged["apipv6_websubmit_" + id + "_" + key] = value;
     return new Promise((resolve, reject) => {
         const req = http.request(origin + "/_api/", { method: "POST" }, res => {
             let body = "";
             res.on("data", chunk => { body += chunk; });
-            res.on("end", () => { try { assert.strictEqual(res.statusCode, 200, body); resolve(JSON.parse(JSON.parse(body).result)); } catch (e) { reject(e); } });
+            res.on("end", () => { try { assert.strictEqual(res.statusCode, 200, body); resolve(decodeWire(JSON.parse(body).result)); } catch (e) { reject(e); } });
         });
         req.on("error", reject);
         req.end(JSON.stringify({ id, method: "apipv6_config.sh", params, fields: staged }));
@@ -141,6 +151,7 @@ async function request(params, fields = {}, extraEnv = {}) {
     // relocate only the HTTP transport endpoint to our ephemeral local server.
     fs.copyFileSync(path.join(root, "tests/fixtures/koolshare-base.sh"), path.join(ks, "scripts/base.sh"));
     fs.writeFileSync(path.join(wrongShell, "curl"), '#!/bin/sh\n' +
+        '[ "${APIPV6_TEST_CALLBACK_FAILURE:-0}" != 1 ] || exit 22\n' +
         '[ "$#" -eq 5 ] && [ "$1" = -X ] && [ "$2" = POST ] && [ "$3" = -d ] || exit 90\n' +
         'case "$5" in http://127.0.0.1:3030/_resp/*) ;; *) exit 91 ;; esac\n' +
         'endpoint=${5#http://127.0.0.1:3030}\n' +
@@ -160,6 +171,22 @@ async function request(params, fields = {}, extraEnv = {}) {
     await until(() => requests.length >= 2 && pending.size === 0, "initial log callback");
     assert(el("apipv6-mode").textContent.includes("AP 模式"));
     assert(el("apipv6-address-rows").children.length > 1);
+    // Procfs-style values without a trailing newline must not disappear.
+    for (const [name, value] of Object.entries({ disable_ipv6: "0", autoconf: "1", accept_ra: "2" })) fs.writeFileSync(path.join(sysctl, "br0", name), value);
+    const noNewline = await request(["status"]);
+    assert.strictEqual(noNewline.health, "normal");
+    assert.deepStrictEqual(noNewline.sysctl, { disable_ipv6: "0", accept_ra: "2", autoconf: "1" });
+    // Quotes, backslashes, Chinese, CR, tabs and newlines must survive httpdb.
+    const hostileLog = '中文日志 "quoted" \\ path\r\nsecond\tline <img onerror=alert(1)>\n';
+    fs.writeFileSync(path.join(env.APIPV6_RUN_DIR, "apipv6.log"), hostileLog);
+    assert.strictEqual((await request(["logs"])).log, hostileLog.replace(/\n$/, ""));
+    envelopeMode = "escaped";
+    assert.strictEqual((await request(["status"])).health, "normal");
+    assert.strictEqual((await request(["logs"])).log, hostileLog.replace(/\n$/, ""));
+    const largeLog = '"\\'.repeat(15000);
+    fs.writeFileSync(path.join(env.APIPV6_RUN_DIR, "apipv6.log"), largeLog);
+    assert.strictEqual((await request(["logs"])).log, largeLog, "large encoded log is posted from a file, not a huge curl argument");
+    envelopeMode = "legacy";
     el("apipv6-delay").value = "0";
     el("apipv6-interval").value = "10";
     el("apipv6-save").events.click();
@@ -195,6 +222,11 @@ async function request(params, fields = {}, extraEnv = {}) {
     for (const count of callbacks.values()) assert.strictEqual(count, 1, "exactly one callback per ID");
     for (const payload of requests) for (const key of Object.keys(payload.fields)) assert(key.startsWith("apipv6_websubmit_" + payload.id + "_"), "never submit live settings as HTTP fields");
     assert(!fs.readFileSync(env.MOCK_DBUS_FILE, "utf8").includes("apipv6_websubmit_"), "staging fields cleaned on success and failure");
+    await assert.rejects(exec(path.join(ks, "scripts/apipv6_config.sh"), ["12345678", "logs"], {
+        env: Object.assign({}, env, { APIPV6_TEST_CALLBACK_FAILURE: "1" })
+    }), error => error.code === 1);
+    assert(fs.readFileSync(path.join(env.APIPV6_RUN_DIR, "apipv6.log"), "utf8").includes("KoolShare callback failed"), "failed callback is recorded and never reported as success");
+    assert(!fs.readdirSync(env.APIPV6_RUN_DIR).some(name => name.startsWith("response-")), "callback payload files are removed");
     assert.strictEqual((await dbus("get", "other_plugin_sentinel")).stdout.trim(), "preserve");
     assert(!fs.existsSync(path.join(env.APIPV6_TMP_ROOT, "wrong-sh")));
     for (const timer of timers) clearTimeout(timer);

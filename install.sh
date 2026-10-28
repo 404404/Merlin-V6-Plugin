@@ -255,6 +255,11 @@ initialize_setting() {
     [ -n "$existing" ] || dbus set "$key=$value" || return 1
 }
 
+switch_label() {
+    switch_value=$(dbus get "$1" 2>/dev/null) || switch_value=
+    case "$switch_value" in 1) printf '已启用' ;; 0) printf '已关闭' ;; *) printf '未知，请检查设置' ;; esac
+}
+
 main() {
     missing_tools=
     for tool in awk cat chmod cp date df dirname grep mkdir mv rm rmdir sed sleep tail tr wc; do
@@ -340,7 +345,12 @@ main() {
     migration_status=$(awk -F= '$1 == "status" { sub(/^[^=]*=/, ""); print; exit }' "$KS_DIR/var/apipv6/migration-state" 2>/dev/null)
     case "$migration_status" in
         known_pending) say '已备份已知旧 V00 启动脚本；它会保留到新插件启用并通过修复验证。' ;;
-        conflict) say '警告：V00apipv6.sh 与已知版本不匹配，按用户脚本处理并保持原样；请查看迁移状态与 SHA-256。' ;;
+        conflict)
+            migration_hash=$(awk -F= '$1 == "sha256" { sub(/^[^=]*=/, ""); print; exit }' "$KS_DIR/var/apipv6/migration-state" 2>/dev/null)
+            say '提示：旧 V00apipv6.sh 未匹配已知模板，原文件保留；这不是安装失败。'
+            say "旧脚本路径：$KS_DIR/init.d/V00apipv6.sh；SHA-256：${migration_hash:-无法读取}"
+            say '该文件不会因启用自动修复而自动迁移。请先备份并核对内容，避免新旧入口重复运行。'
+            ;;
         backup_failed) say '警告：旧启动脚本的 SHA-256 校验或备份失败，原文件保持不变，迁移未执行。' ;;
         none|migrated|restored) ;;
         *) say '警告：旧启动脚本状态无法确认；原入口保持原样。' ;;
@@ -353,10 +363,13 @@ main() {
     else
         say "当前 sw_mode=${sw_mode:-unknown}、wlc_psta=$wlc_psta；插件只允许只读诊断，直到确认 AP 模式。"
     fi
-    say "AP IPv6 Manager v$PLUGIN_VERSION 安装成功；自动修复默认关闭，没有修改网络配置。"
+    say "AP IPv6 Manager v$PLUGIN_VERSION 安装成功；本次安装没有修改网络配置。"
+    say "当前设置：开机自动修复$(switch_label apipv6_enabled)；周期检查$(switch_label apipv6_health_enabled)；异常自动修复$(switch_label apipv6_repair_on_error)。"
+    say '新安装默认关闭自动任务；升级保留原设置。安装完成不代表 Web 通信或 IPv6 实机验收通过。'
     say "升级备份：$BACKUP_DIR"
     say "手动回滚：/bin/sh $KS_DIR/scripts/apipv6_rollback.sh $BACKUP_DIR"
-    say '如需旧 V00 启动脚本迁移，请先启用自动修复并确认一次修复成功。'
+    [ "$migration_status" != known_pending ] || say '已识别的旧 V00 启动脚本会在启用自动修复并确认一次修复成功后迁移。'
+    return 0
 }
 
 main "$@"
