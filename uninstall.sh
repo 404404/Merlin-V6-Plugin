@@ -16,6 +16,9 @@ fi
 # These paths are owned by this plugin. The core, config and runtime DBUS
 # values are deliberately retained because they may contain user-managed data.
 rm -f "$KS_DIR/scripts/easytier_config.sh"
+rm -f "$KS_DIR/scripts/easytier_nodes.sh"
+rm -f "$KS_DIR/bin/easytier-cli-plugin"
+rm -f "$KS_DIR/res/easytier_nodes.js"
 rm -f "$KS_DIR/scripts/uninstall_easytier.sh"
 rm -f "$KS_DIR/webs/Module_easytier.asp"
 rm -f "$KS_DIR/res/icon-easytier.png"

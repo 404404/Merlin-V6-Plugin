@@ -4,13 +4,25 @@
 
 ## 版本与核心
 
-- 插件版本：**1.0.1**
+- 开发中的插件版本：**1.1.0**（节点信息与安全版本识别）
 - 新安装包的核心构建基线：**EasyTier 官方 v2.6.4**
 - 核心来源：官方 [EasyTier v2.6.4 Release](https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4)，构建前按仓库 Makefile 中固定的 SHA-256 校验。
 - 插件升级会默认保留设备上现有的 easytier-core。插件版本、构建包核心版本和设备当前核心版本是不同信息。
-- 设备当前核心版本不会通过运行 easytier-core --version 查询。若没有安全可靠的版本元数据，Web 页面显示“未知”；安装包内 v2.6.4 不代表设备现装核心版本。
+- 设备当前核心版本通过本机 RPC 返回值读取；也可对运行中程序的文件指纹作精确匹配。不会运行 easytier-core --version。无法识别时明确显示“未知”；安装包内 v2.6.4 不代表设备现装核心版本。
 
-当前 Phase 1 仅修复插件生命周期、自启动、升级保护和自动构建发布，不升级 EasyTier 核心，不开发节点状态面板或 IPv6 插件。
+Phase 1 已实现插件生命周期、自启动、升级保护和自动构建发布。用户于 2026-10-28 反馈 AX56U 重启后可以自行启动；节点查询功能仍需另行实机验证。当前下一轮开发增加只读节点面板和安全版本识别，继续保留设备核心，不开发 IPv6 插件。
+
+## 节点信息与核心版本
+
+- 对齐官方 GUI 常用信息：节点名称、虚拟 IP、直连/中继、延迟、丢包、累计接收/发送、协议和节点版本。流量表示连接累计值，不是实时网速；中继节点不推断丢包和流量，显示“—”，缺少字段也不会伪造为零。
+- 安装包从同一份已校验的官方 v2.6.4 ZIP 提取对应架构的 `easytier-cli`，安装为 `/koolshare/bin/easytier-cli-plugin`（约 2.3 MB）。查询工具和现有核心是独立文件；升级只新增/更新插件查询工具，保留现有核心以及用户自行安装的 `easytier-cli`。
+- 查询固定执行 `easytier-cli-plugin -p 127.0.0.1:<端口> --output json peer`，不会执行核心版本命令或写入配置。只连接回环地址，并用端口所属 PID 验证目标是插件管理的进程。默认端口为 15888，也支持配置中明确设置的本机端口。
+- 采用官方 CLI 的普通 peer JSON 行列表，不调用可能包含完整配置和密钥的 verbose/node/config 查询。面板通过软件中心现有 API 返回数据，查询缓存位于权限为 700 的私有 `/tmp/easytier-nodes` 目录。
+- 页面可手动刷新；默认每 15 秒刷新，隐藏页面暂停请求。同一时间只运行一个查询工具，成功缓存 10 秒，失败退避 60 秒；CLI 运行最多等待约 4 秒，并限制输出大小，异常不会停止核心。
+- 不要求设备安装 jq。文件指纹识别在可用时使用 sha256sum、BusyBox 对应 applet 或 OpenSSL；缺少工具时仍可通过 RPC 读取版本。只接受本机节点行的版本，绝不使用远端节点或 CLI 自身版本冒充核心版本。
+- 如 RPC 被关闭、端口无法核实或 CLI 与设备核心不兼容，会明确显示不可用原因，保留现有组网服务。需要在 AX56U 上确认 CLI 能正常运行及与现装核心的协议兼容性。
+
+字段依据：[官方 CLI peer 输出实现](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier/src/easytier-cli.rs)、[官方 GUI 状态页面](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier-web/frontend-lib/src/components/Status.vue)。
 
 ## 支持平台与架构
 
@@ -45,6 +57,7 @@ SSH 手动安装时，先将归档上传到路由器 /tmp：
 - 启动时只检查 IPv4 路由或非回环 IPv4 地址，不等待 IPv6；IPv4 尚未就绪时最多重试 30 次，每次间隔 2 秒。
 - N99easytier.sh 不停止 EasyTier，避免 NAT 初始化事件误停服务。
 - 自动启动只在 dbus get easytier_autostart 返回 1 时生效。关闭后，冷启动事件会跳过服务。
+- 开机任务等待网络或服务互斥锁后都会重新检查开关，避免已关闭自启动时被旧后台任务重新拉起。
 - 自启动依赖已有非空 /koolshare/configs/easytier.conf 和可执行核心。
 
 ## CLI 操作
@@ -55,6 +68,7 @@ SSH 手动安装时，先将归档上传到路由器 /tmp：
     sh /koolshare/scripts/easytier_config.sh stop
     sh /koolshare/scripts/easytier_config.sh restart
     sh /koolshare/scripts/easytier_config.sh status
+    sh /koolshare/scripts/easytier_config.sh nodes
 
 CLI start 不保存、不重写配置。服务脚本通过 PID 文件和 /proc 命令行核对进程确实以插件核心路径及配置文件启动；无效 PID 文件不会被用于发信号。停止先发 TERM，超时后才对已核实的插件进程发 KILL，不使用 killall easytier-core。
 
@@ -91,13 +105,13 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
 
 PR 合并到 `EasyTier-Merlin` 且 CI 全部通过后，先发布候选版：
 
-    git tag plugin-v1.0.1-rc.1
-    git push origin plugin-v1.0.1-rc.1
+    git tag plugin-v1.1.0-rc.1
+    git push origin plugin-v1.1.0-rc.1
 
 该 Tag 会创建 GitHub Pre-release，供离线安装包验证。只有 AX56U 实机冷启动和自启动验证通过后，才发布正式版：
 
-    git tag plugin-v1.0.1
-    git push origin plugin-v1.0.1
+    git tag plugin-v1.1.0
+    git push origin plugin-v1.1.0
 
 Release 标题和说明会分别标明插件版本与 EasyTier 官方核心构建版本。CI 不会执行 ARM 核心，也不能替代 RT-AX56U 实机测试。每次 Release 都会明确标注 AX56U 冷启动是否完成验证。
 
@@ -108,10 +122,11 @@ Release 标题和说明会分别标明插件版本与 EasyTier 官方核心构�
 1. 安装前记录 dbus get easytier_autostart，备份 /koolshare/configs/easytier.conf，保存 ls -l /koolshare/bin/easytier-core。
 2. 安装插件后确认核心文件、配置文件和 DBUS 网络配置内容保持原状；dbus get easytier_autostart 应仍为原值。
 3. 执行 status、stop、start、restart、status，确认每条命令退出码及 Web 状态/日志一致。
-4. 确认 Web 页面将设备核心版本显示为“未知”，并且安装过程没有调用核心 --version。
+4. 确认 Web 页面版本来源为本机 RPC 或精确文件指纹，不能以查询工具的版本替代核心版本；无法读取时显示“未知”，不调用核心 --version。
 5. 分别以自启动为 0 与 1 验证 services-start；启用时确认 IPv4 就绪后仅运行一个实例。
 6. 检查 start_nat 不会停止服务，并在维护窗口安排冷启动验证 V* 入口。观察其他 KoolShare 插件、Lucky 和现有 IPv6 修复脚本是否正常。
 7. 记录 AX56U 型号、固件版本、测试时间、启动日志和结果，再将 Release 的实机验证状态更新为已完成。
+8. 对比官方 GUI 的节点信息，检查中文及特殊字符名称显示、直连/中继、延迟/丢包和累计流量；停止服务后不能保留旧节点列表，RPC 故障时不能影响组网。
 
 ## 卸载
 

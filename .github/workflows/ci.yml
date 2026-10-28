@@ -22,7 +22,7 @@ jobs:
       - name: Install test tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes busybox shellcheck make tar gzip coreutils
+          sudo apt-get install --yes busybox shellcheck make tar gzip coreutils nodejs
 
       - name: POSIX shell syntax
         run: |
@@ -42,6 +42,11 @@ jobs:
 
       - name: Lifecycle, events, install, rollback and uninstall tests
         run: sh tests/run.sh
+
+      - name: Read-only node query and GUI tests
+        run: |
+          busybox ash tests/nodes.sh
+          node tests/nodes_ui.js
 
       - name: Makefile and archive structure check with mock cores
         run: |
@@ -63,8 +68,8 @@ jobs:
 
       - name: Build packages from pinned official releases
         run: |
-          make all PLUGIN_VERSION=1.0.1 CORE_VERSION=2.6.4
-          sh scripts/check_package.sh
+          make all PLUGIN_VERSION=1.1.0 CORE_VERSION=2.6.4
+          EASYTIER_VERIFY_OFFICIAL=1 sh scripts/check_package.sh
 
       - name: Upload packages for Release job
         uses: actions/upload-artifact@v4

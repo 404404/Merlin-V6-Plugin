@@ -1,6 +1,6 @@
 #!/bin/sh
-# Safe KoolShare installer for EasyTier plugin 1.0.1.
-PLUGIN_VERSION=1.0.1
+# Safe KoolShare installer for EasyTier plugin 1.1.0.
+PLUGIN_VERSION=1.1.0
 CORE_VERSION=2.6.4
 KS_DIR=${KS_DIR:-/koolshare}
 PATH=${PATH:+$PATH:}$KS_DIR/bin:$KS_DIR/scripts:/usr/sbin:/usr/bin:/sbin:/bin
@@ -98,6 +98,9 @@ backup_targets() {
     : > "$BACKUP_DIR/manifest" || return 1
     : > "$BACKUP_DIR/absent" || return 1
     for rel in \
+        bin/easytier-cli-plugin \
+        scripts/easytier_nodes.sh \
+        res/easytier_nodes.js \
         scripts/easytier_config.sh \
         scripts/uninstall_easytier.sh \
         scripts/easytier_rollback.sh \
@@ -151,6 +154,8 @@ check_arch() {
         say "安装包缺少 $ARCH 对应核心：$CORE_SOURCE"
         return 1
     }
+    CLI_SOURCE=$SOURCE_DIR/bin/easytier-cli_${CORE_SOURCE##*_}
+    [ -f "$CLI_SOURCE" ] || { say "安装包缺少对应架构的查询工具"; return 1; }
 }
 
 main() {
@@ -175,18 +180,26 @@ main() {
     do
         [ -f "$SOURCE_DIR/$required" ] || abort_install "安装包缺少文件：$required"
     done
+    for required in scripts/easytier_nodes.sh res/easytier_nodes.js; do
+        [ -f "$SOURCE_DIR/$required" ] || abort_install "安装包缺少文件：$required"
+    done
 
     acquire_install_lock || abort_install "另一个安装任务正在运行"
     mkdir -p "$KS_DIR/bin" "$KS_DIR/scripts" "$KS_DIR/webs" "$KS_DIR/res" "$KS_DIR/init.d" "$KS_DIR/configs" ||
         abort_install "无法创建 KoolShare 目录"
     available=$(df -Pk "$KS_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
-    required_kb=1024
+    cli_bytes=$(wc -c < "$CLI_SOURCE" | tr -d ' ')
+    required_kb=$(( (cli_bytes + 1023) / 1024 + 1024 ))
+    if [ -f "$KS_DIR/bin/easytier-cli-plugin" ]; then
+        old_cli_bytes=$(wc -c < "$KS_DIR/bin/easytier-cli-plugin" | tr -d ' ')
+        required_kb=$((required_kb + (old_cli_bytes + 1023) / 1024))
+    fi
     if [ ! -e "$KS_DIR/bin/easytier-core" ] && [ ! -L "$KS_DIR/bin/easytier-core" ]; then
         core_bytes=$(wc -c < "$CORE_SOURCE" 2>/dev/null | tr -d ' ')
         case "$core_bytes" in
             ''|*[!0-9]*) abort_install "无法读取核心文件大小" ;;
         esac
-        required_kb=$(( (core_bytes + 1023) / 1024 + 1024 ))
+        required_kb=$(( required_kb + (core_bytes + 1023) / 1024 ))
     fi
     case "$available" in
         ''|*[!0-9]*) ;;
@@ -208,6 +221,10 @@ main() {
     else
         say "升级：保留现有 easytier-core，不替换也不查询版本"
     fi
+
+    install_file "$CLI_SOURCE" "$KS_DIR/bin/easytier-cli-plugin" 755 || abort_install "安装查询工具失败"
+    install_file "$SOURCE_DIR/scripts/easytier_nodes.sh" "$KS_DIR/scripts/easytier_nodes.sh" 755 || abort_install "安装节点查询脚本失败"
+    install_file "$SOURCE_DIR/res/easytier_nodes.js" "$KS_DIR/res/easytier_nodes.js" 644 || abort_install "安装节点页面资源失败"
 
     install_file "$SOURCE_DIR/scripts/easytier_config.sh" "$KS_DIR/scripts/easytier_config.sh" 755 ||
         abort_install "安装服务脚本失败"
@@ -250,7 +267,7 @@ main() {
         say "警告：软件中心描述写入失败"
 
     release_install_lock
-    say "EasyTier 插件 v$PLUGIN_VERSION 安装完成。核心版本：保留设备现状（未知）"
+    say "EasyTier 插件 v$PLUGIN_VERSION 安装完成。核心已保留；页面将尝试通过文件指纹及只读管理接口识别版本。"
     say "没有重启或启动正在运行的服务。配置和自启动 DBUS 值均已保留。"
     say "备份目录：$BACKUP_DIR"
     say "手动回滚：sh $KS_DIR/scripts/easytier_rollback.sh $BACKUP_DIR"

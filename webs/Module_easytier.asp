@@ -25,6 +25,7 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/js/table/table.js"></script>
 <script language="JavaScript" type="text/javascript" src="/res/softcenter.js"></script>
+<script type="text/javascript" src="/res/easytier_nodes.js"></script>
 <style>
 a:focus { outline: none; }
 .SimpleNote { padding:5px 5px; }
@@ -46,6 +47,7 @@ function init() {
     register_event();
     get_dbus_data();
     check_status();
+    EasyTierNodes.mount();
 }
 
 function get_dbus_data() {
@@ -67,8 +69,7 @@ function conf2obj() {
         } catch(e) { console.log("Base64解码失败:", e); }
     }
     if (dbus['easytier_autostart']) E("easytier_autostart").checked = dbus['easytier_autostart'] !== "0";
-    E("easytier_plugin_version").textContent = "1.0.1";
-    E("easytier_core_version").textContent = "未知（保留设备核心，未查询）";
+    E("easytier_plugin_version").textContent = "1.1.0";
     
     E("easytier_status").style.display = "";
     update_autostart_availability();
@@ -295,7 +296,7 @@ function clear_runtime_log() {
                                 <tr>
                                     <td bgcolor="#4D595D" colspan="3" valign="top">
                                         <div>&nbsp;</div>
-                                        <div class="formfonttitle">EasyTier <span style="font-size:13px;">插件 v<label id="easytier_plugin_version">1.0.1</label> · 核心 <label id="easytier_core_version">未知</label></span></div>
+                                        <div class="formfonttitle">EasyTier <span style="font-size:13px;">插件 v<label id="easytier_plugin_version">1.1.0</label> · 核心 <label id="easytier_core_version">未知</label></span></div>
                                         <div style="float: right; width: 15px; height: 25px; margin-top: -20px">
                                             <img id="return_btn" alt="" onclick="reload_Soft_Center();" align="right" style="cursor: pointer; position: absolute; margin-left: -30px; margin-top: -25px;" title="返回软件中心" src="/images/backprev.png" onmouseover="this.src='/images/backprevclick.png'" onmouseout="this.src='/images/backprev.png'" />
                                         </div>
@@ -314,6 +315,20 @@ function clear_runtime_log() {
                                                     <td><span style="margin-left:4px" id="easytier_status_text"></span></td>
                                                 </tr>
                                             </table>
+                                        </div>
+                                        <div style="margin-top:10px">
+                                            <div class="SimpleNote">
+                                                <strong>节点信息</strong>
+                                                <input id="easytier_nodes_refresh" class="button_gen" type="button" value="刷新" />
+                                                <label><input id="easytier_nodes_auto" type="checkbox" checked="checked" /> 每 15 秒刷新</label>
+                                                <div id="easytier_nodes_message" role="status">等待读取节点信息</div>
+                                            </div>
+                                            <div style="overflow-x:auto;">
+                                                <table width="100%" border="1" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable">
+                                                    <thead><tr><td>节点名称</td><td>虚拟 IP</td><td>连接</td><td>延迟</td><td>丢包</td><td>累计接收</td><td>累计发送</td><td>协议</td><td>版本</td></tr></thead>
+                                                    <tbody id="easytier_nodes_body"></tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                         <div style="margin-top:10px">
                                             <table width="100%" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable">

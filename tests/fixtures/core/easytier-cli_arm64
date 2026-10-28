@@ -1,0 +1,3 @@
+#!/bin/sh
+# Non-ARM query-tool fixture used only for package layout tests.
+exit 0

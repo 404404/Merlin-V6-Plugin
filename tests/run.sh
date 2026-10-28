@@ -106,6 +106,7 @@ exit 0
 MOCK
 cat > "$MOCK_BIN/sleep" <<'MOCK'
 #!/bin/sh
+if [ -n "${LOCK_WAIT_MARKER:-}" ]; then : > "$LOCK_WAIT_MARKER"; fi
 if [ "${MOCK_SLEEP_ZERO:-0}" = 1 ]; then exit 0; fi
 exec /bin/sleep "$@"
 MOCK
@@ -169,6 +170,24 @@ plugin_process_count() {
     printf '%s\n' "$count"
 }
 
+wait_for_event_workers() {
+    event_wait=0
+    while [ "$event_wait" -lt 200 ]; do
+        event_pending=0
+        for event_cmdfile in /proc/[0-9]*/cmdline; do
+            [ -r "$event_cmdfile" ] || continue
+            event_cmdline=$(tr '\000' ' ' < "$event_cmdfile" 2>/dev/null || :)
+            case " $event_cmdline " in
+                *" $SERVICE autostart "*|*" $ROOT/init.d/V99easytier.sh services-start "*|*" $ROOT/init.d/S99easytier.sh wan-start "*) event_pending=1 ;;
+            esac
+        done
+        [ "$event_pending" = 1 ] || return 0
+        /bin/sleep 0.1
+        event_wait=$((event_wait + 1))
+    done
+    return 1
+}
+
 # Exercise nvram/dbus/ip/iptables mocks without reading real device data.
 [ "$(nvram get lan_ipaddr)" = 192.0.2.1 ] || fail "nvram mock"
 export DBUS_STATE="$TMP/dbus.values"
@@ -197,6 +216,11 @@ cat > "$SERVICE_ROOT/scripts/base.sh" <<'BASE'
 command() {
     printf '%s\n' 'command: not found' >&2
     return 127
+}
+sleep() {
+    # Some test-runner ash builds use a builtin sleep ahead of PATH applets.
+    if [ -n "${LOCK_WAIT_MARKER:-}" ]; then : > "$LOCK_WAIT_MARKER"; fi
+    [ "${MOCK_SLEEP_ZERO:-0}" = 1 ] || /bin/sleep "$@"
 }
 http_response() {
     printf '%s\n' "$1" > "$HTTP_RESPONSE_FILE"
@@ -240,6 +264,9 @@ call_web() {
     operation=$2
     shift 2
     queue_web_fields "$request_id" "$@"
+    # The API acknowledges before its worker clears the log. A previous
+    # terminator must not let this test mistake a new operation for completion.
+    : > "$LOG_DIR/easytier_log.txt"
     sh "$SERVICE" "$request_id" "$operation" web_submit
 }
 assert_web_fields_clean() {
@@ -342,11 +369,26 @@ sh "$SERVICE" autostart || fail "IPv4-only autostart"
 [ "$(sh "$SERVICE" status)" = 运行 ] || fail "IPv4-only network was blocked"
 sh "$SERVICE" stop || fail "stop after autostart"
 
+# Disabling autostart while a boot worker waits on the service mutex must
+# cancel that worker, rather than resurrecting a subsequently stopped service.
+mkdir "$EASYTIER_LOCK_DIR"
+printf '%s\n' "$$" > "$EASYTIER_LOCK_DIR/pid"
+LOCK_WAIT_MARKER="$TMP/auto-waiting-on-service-lock" sh "$SERVICE" autostart &
+waiting_auto=$!
+wait_for_file "$TMP/auto-waiting-on-service-lock" || fail "boot worker did not reach the held service lock"
+printf '%s\n' 'easytier_autostart=0' > "$DBUS_STATE"
+rm -f "$EASYTIER_LOCK_DIR/pid"
+rmdir "$EASYTIER_LOCK_DIR"
+wait "$waiting_auto" || fail "cancelled boot worker failed"
+[ ! -e "$EASYTIER_PID_FILE" ] || fail "disabled pending boot worker restarted service"
+grep -F '等待服务锁期间自启动被关闭' "$LOG_DIR/easytier_log.txt" >/dev/null ||
+    fail "lock-wait cancellation was not logged"
+
 # Check V/S/N dispatch and asynchronous duplicate-event handling.
 export EASYTIER_CONFIG_SCRIPT="$SERVICE"
 printf '%s\n' 'easytier_autostart=0' > "$DBUS_STATE"
 sh "$ROOT/init.d/V99easytier.sh" services-start
-/bin/sleep 0.2
+wait_for_event_workers || fail "disabled V event worker did not finish"
 [ ! -e "$EASYTIER_PID_FILE" ] || fail "V event ignored autostart=0"
 printf '%s\n' 'easytier_autostart=1' > "$DBUS_STATE"
 sh "$ROOT/init.d/V99easytier.sh" services-start &
@@ -359,7 +401,7 @@ wait "$event_v" || fail "V event handler"
 wait "$event_s" || fail "S event handler"
 wait "$manual_start" || fail "concurrent manual start"
 wait_for_file "$EASYTIER_PID_FILE" || fail "V/S event did not start service"
-/bin/sleep 0.5
+wait_for_event_workers || fail "V/S event workers did not finish"
 [ "$(plugin_process_count)" = 1 ] || fail "manual and boot starts launched duplicate cores"
 pid=$(cat "$EASYTIER_PID_FILE")
 sh "$ROOT/init.d/N99easytier.sh" start_nat || fail "N event handler"
@@ -553,12 +595,14 @@ cmp -s "$DBUS_STATE" "$TMP/install-dbus.before" || fail "preflight failure chang
 
 KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install-tmp" \
     sh "$PKG/install.sh" > "$TMP/upgrade-output" || fail "upgrade install"
-[ "$(dbus get softcenter_module_easytier_version)" = 1.0.1 ] ||
+[ "$(dbus get softcenter_module_easytier_version)" = 1.1.0 ] ||
     fail "installer did not register the plugin version"
 [ "$(dbus get softcenter_module_easytier_install)" = 1 ] ||
     fail "installer did not register the plugin install state"
 [ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] || fail "upgrade replaced existing core"
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "upgrade replaced config"
+cmp -s "$UPGRADE_ROOT/bin/easytier-cli-plugin" "$PKG/bin/easytier-cli_arm32" || fail "upgrade did not install ARMv7 query helper"
+[ -f "$UPGRADE_ROOT/scripts/easytier_nodes.sh" ] || fail "upgrade did not install node helper"
 [ "$(dbus get easytier_autostart)" = 1 ] || fail "upgrade changed autostart DBUS"
 [ "$(dbus get easytier_network_name)" = KEEP_NAME ] || fail "upgrade changed network name"
 [ "$(dbus get easytier_network_secret)" = KEEP_SECRET ] || fail "upgrade changed secret"
@@ -571,6 +615,8 @@ KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/nul
 [ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = OLD_PLUGIN_SCRIPT ] || fail "rollback did not restore script"
 [ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] || fail "rollback changed core"
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "rollback changed config"
+[ ! -e "$UPGRADE_ROOT/bin/easytier-cli-plugin" ] || fail "rollback kept newly installed query helper"
+[ ! -e "$UPGRADE_ROOT/res/easytier_nodes.js" ] || fail "rollback kept newly installed UI resource"
 
 # Automatic rollback selects the latest timestamped backup without non-POSIX test operators.
 latest_backup=$UPGRADE_ROOT/backup/easytier/20990101000000-999999
@@ -588,6 +634,8 @@ mkdir -p "$FAIL_ROOT/bin" "$FAIL_ROOT/configs" "$FAIL_ROOT/scripts" "$TMP/fail-m
 printf '%s\n' 'existing-core' > "$FAIL_ROOT/bin/easytier-core"
 printf '%s\n' 'existing-config' > "$FAIL_ROOT/configs/easytier.conf"
 printf '%s\n' 'EXISTING_SCRIPT' > "$FAIL_ROOT/scripts/easytier_config.sh"
+printf '%s\n' 'EXISTING_PLUGIN_CLI' > "$FAIL_ROOT/bin/easytier-cli-plugin"
+printf '%s\n' 'USER_MANAGED_CLI' > "$FAIL_ROOT/bin/easytier-cli"
 cat > "$TMP/fail-mockbin/mv" <<'MOCK'
 #!/bin/sh
 case "$*" in
@@ -606,6 +654,10 @@ fi
     fail "failed install changed the existing core"
 [ "$(cat "$FAIL_ROOT/configs/easytier.conf")" = existing-config ] ||
     fail "failed install changed the existing config"
+[ "$(cat "$FAIL_ROOT/bin/easytier-cli-plugin")" = EXISTING_PLUGIN_CLI ] ||
+    fail "failed install did not restore the previous query helper"
+[ "$(cat "$FAIL_ROOT/bin/easytier-cli")" = USER_MANAGED_CLI ] ||
+    fail "failed install changed a user-managed CLI"
 [ ! -e "$TMP/fail-tmp/easytier-install.lock" ] || fail "failed install left its lock behind"
 grep -F '安装已回滚' "$TMP/fail-output" >/dev/null || fail "failed install did not explain rollback"
 
@@ -630,6 +682,8 @@ fi
     fail "version registration failure changed the existing core"
 [ "$(cat "$VERSION_FAIL_ROOT/configs/easytier.conf")" = existing-config ] ||
     fail "version registration failure changed the existing config"
+[ ! -e "$VERSION_FAIL_ROOT/bin/easytier-cli-plugin" ] ||
+    fail "version registration failure kept a newly installed query helper"
 grep -F '软件中心插件版本号登记失败' "$TMP/version-fail-output" >/dev/null ||
     fail "version registration failure was not explained"
 
@@ -661,6 +715,9 @@ cmp -s "$NEW_ROOT/bin/easytier-core" "$TMP/new-core-before" || fail "uninstall r
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "uninstall removed autostart setting"
 [ ! -e "$NEW_ROOT/scripts/easytier_config.sh" ] || fail "uninstall kept lifecycle script"
 [ ! -e "$NEW_ROOT/init.d/V99easytier.sh" ] || fail "uninstall kept boot hook"
+[ ! -e "$NEW_ROOT/bin/easytier-cli-plugin" ] || fail "uninstall kept plugin query helper"
+[ ! -e "$NEW_ROOT/scripts/easytier_nodes.sh" ] || fail "uninstall kept node script"
+[ ! -e "$NEW_ROOT/res/easytier_nodes.js" ] || fail "uninstall kept node UI resource"
 [ -z "$(dbus get softcenter_module_easytier_version)" ] || fail "uninstall kept plugin version registration"
 [ -z "$(dbus get softcenter_module_easytier_install)" ] || fail "uninstall kept plugin install registration"
 

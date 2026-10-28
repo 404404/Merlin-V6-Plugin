@@ -35,7 +35,7 @@ case "${1:-}" in
 esac
 for arg in "$@"; do
     case "$arg" in
-        start|stop|restart|status|save_config|save_autostart|clear_runtime_log|autostart)
+        start|stop|restart|status|nodes|save_config|save_autostart|clear_runtime_log|autostart)
             [ -n "$OPERATION" ] || OPERATION=$arg
             ;;
         web_submit)
@@ -408,8 +408,15 @@ autostart_service() {
         fi
         if network_ready; then
             if acquire_lock; then
-                start_service
-                result=$?
+                # A Web save may disable autostart while an old boot worker
+                # waits behind a manual lifecycle operation.
+                if autostart_enabled; then
+                    start_service
+                    result=$?
+                else
+                    log_msg "等待服务锁期间自启动被关闭，取消启动"
+                    result=0
+                fi
                 release_lock
             else
                 log_msg "自启动失败：等待服务互斥锁超时"
@@ -530,6 +537,20 @@ save_autostart() {
 
 dispatch() {
     case "$OPERATION" in
+        nodes)
+            NODES_SCRIPT=${EASYTIER_NODES_SCRIPT:-$KS_DIR/scripts/easytier_nodes.sh}
+            if [ ! -r "$NODES_SCRIPT" ]; then
+                nodes_result='{"state":"helper_missing","payload":""}'
+            else
+                . "$NODES_SCRIPT"
+                nodes_result=$(nodes_query)
+            fi
+            if [ -n "$API_REQUEST_ID" ] && type http_response >/dev/null 2>&1; then
+                http_response "$nodes_result"
+            else
+                printf '%s\n' "$nodes_result"
+            fi
+            ;;
         status)
             if pid=$(managed_pid); then
                 if [ -n "$API_REQUEST_ID" ] && type http_response >/dev/null 2>&1; then
@@ -604,6 +625,7 @@ dispatch() {
 }
 
 if [ "$WEB_SUBMIT" = 1 ]; then
+    [ "$OPERATION" != nodes ] || exit 2
     if type http_response >/dev/null 2>&1; then
         http_response "${API_REQUEST_ID:-success}"
     fi

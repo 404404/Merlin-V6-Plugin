@@ -73,12 +73,15 @@ jobs:
           ## EasyTier KoolShare plugin ${{ steps.versions.outputs.release_version }}
 
           - Plugin changes: safe CLI lifecycle, asynchronous AP boot startup, idempotent service/firewall handling, and upgrade rollback support.
+          - Node view: read-only official-GUI-style peer information, loopback RPC process verification, bounded CLI queries and private caching. The query tool comes from the same pinned official v2.6.4 archives and does not replace the device core.
+          - Pending boot workers recheck autostart after obtaining the service mutex, so a disabled setting cancels an older queued startup.
+          - Core version: prefer the local node's RPC version, with exact official binary fingerprints as an optional fallback. Never run the problematic core --version command or report the helper's version as the core's version.
           - Legacy Merlin ash compatibility: use the supported type builtin instead of command -v, preventing false dbus-missing install failures and skipped Web API acknowledgements. Installation and service scripts also restore required PATH directories.
           - Plugin version: ${{ steps.versions.outputs.release_version }} (base version ${{ steps.versions.outputs.plugin_version }}).
           - EasyTier core build baseline in new-install packages: official v${{ steps.versions.outputs.core_version }}, downloaded from the EasyTier release and verified against pinned SHA-256 values.
           - Existing installations keep their current easytier-core, configuration and EasyTier DBUS settings. The installed device core version may be unknown; the installer does not query or replace it.
           - Packages: easytier_hnd.tar.gz and easytier_qca.tar.gz; checksums: SHA256SUMS.
-          - ASUS RT-AX56U cold-boot verification: **Not performed by CI; real-device validation is still required.**
+          - ASUS RT-AX56U: the user reported successful reboot autostart with Phase 1 on 2026-10-28. **The new node view/query helper and core-version reading still require on-device validation; CI cannot perform that validation.**
           - This pre-release is for installation testing and is not recommended for critical production use before device validation.
           NOTES
 
