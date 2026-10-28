@@ -21,7 +21,7 @@
 
 ## KoolShare 离线安装
 
-1. 从本仓库 [Releases](https://github.com/404404/easytier-merlin/releases) 下载 easytier_hnd.tar.gz 或 easytier_qca.tar.gz，并一并下载 SHA256SUMS。
+1. 从本仓库 [Releases](https://github.com/404404/Merlin-V6-Plugin/releases) 下载 easytier_hnd.tar.gz 或 easytier_qca.tar.gz，并一并下载 SHA256SUMS。
 2. 在电脑上校验：sha256sum --check SHA256SUMS。
 3. 在 KoolShare 软件中心使用“离线安装”上传与固件平台相符的包。
 4. 安装会备份要替换的插件脚本和页面。现有 easytier-core、/koolshare/configs/easytier.conf、网络名称、密钥、节点配置和 easytier_autostart DBUS 值会保留。
@@ -34,6 +34,8 @@ SSH 手动安装时，先将归档上传到路由器 /tmp：
     sh /tmp/easytier/install.sh
 
 如果软件中心解压目录名称不同，请将最后一条命令改为实际的 install.sh 路径。
+
+兼容旧版 Merlin ash：安装器和服务脚本使用固件支持的 `type` 检测命令及软件中心函数，不依赖部分固件未编译的 `command` 内建命令。脚本也会补齐 KoolShare 和系统工具目录的 PATH。若安装检查失败且尚未替换文件，日志会明确说明无需回滚。
 
 ## 自启动机制
 

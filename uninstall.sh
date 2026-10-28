@@ -1,5 +1,7 @@
 #!/bin/sh
 KS_DIR=${KS_DIR:-/koolshare}
+PATH=${PATH:+$PATH:}$KS_DIR/bin:$KS_DIR/scripts:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 CONFIG_SCRIPT=${EASYTIER_CONFIG_SCRIPT:-$KS_DIR/scripts/easytier_config.sh}
 if [ -r "$KS_DIR/scripts/base.sh" ]; then . "$KS_DIR/scripts/base.sh"; fi
 say() { printf '%s %s\n' "[EasyTier]" "$*"; }
@@ -22,7 +24,7 @@ rm -f "$KS_DIR/init.d/V99easytier.sh"
 rm -f "$KS_DIR/init.d/S99easytier.sh"
 rm -f "$KS_DIR/init.d/N99easytier.sh"
 
-if command -v dbus >/dev/null 2>&1; then
+if type dbus >/dev/null 2>&1; then
     dbus remove softcenter_module_easytier_version
     dbus remove softcenter_module_easytier_install
     dbus remove softcenter_module_easytier_name

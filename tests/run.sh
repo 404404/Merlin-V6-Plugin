@@ -192,6 +192,12 @@ while :; do /bin/sleep 1; done
 CORE
 chmod 755 "$SERVICE_ROOT/bin/easytier-core"
 cat > "$SERVICE_ROOT/scripts/base.sh" <<'BASE'
+# Legacy Merlin ash omits the command builtin. Reproduce the failed lookup
+# while keeping the actual dbus executable and KoolShare functions available.
+command() {
+    printf '%s\n' 'command: not found' >&2
+    return 127
+}
 http_response() {
     printf '%s\n' "$1" > "$HTTP_RESPONSE_FILE"
 }
@@ -516,6 +522,7 @@ PKG=$PKG_STAGE/easytier
 
 UPGRADE_ROOT=$TMP/upgrade-root
 mkdir -p "$UPGRADE_ROOT/bin" "$UPGRADE_ROOT/configs" "$UPGRADE_ROOT/scripts"
+cp "$SERVICE_ROOT/scripts/base.sh" "$UPGRADE_ROOT/scripts/base.sh"
 printf '%s\n' 'current-device-core-do-not-replace' > "$UPGRADE_ROOT/bin/easytier-core"
 chmod 755 "$UPGRADE_ROOT/bin/easytier-core"
 printf '%s\n' 'current-user-config-do-not-replace' > "$UPGRADE_ROOT/configs/easytier.conf"
@@ -524,6 +531,26 @@ printf '%s\n' 'easytier_autostart=1' 'easytier_network_name=KEEP_NAME' 'easytier
 export DBUS_STATE="$TMP/install-dbus"
 export DBUS_LOG="$TMP/install-dbus.log"
 : > "$DBUS_LOG"
+# Preflight failures have not replaced files and must not suggest a nonexistent rollback.
+cp "$DBUS_STATE" "$TMP/install-dbus.before"
+if KS_DIR="$UPGRADE_ROOT" SOURCE_DIR="$TMP/missing-package" EASYTIER_TEST_ARCH=armv7l \
+    EASYTIER_TMP_ROOT="$TMP/install-tmp" sh "$PKG/install.sh" > "$TMP/preflight-output" 2>&1; then
+    fail "missing package should fail preflight"
+fi
+grep -F '尚未替换插件文件；无需回滚' "$TMP/preflight-output" >/dev/null ||
+    fail "preflight failure did not explain that rollback is unnecessary"
+if grep -F '手动恢复' "$TMP/preflight-output" >/dev/null; then
+    fail "preflight failure suggested a nonexistent backup"
+fi
+[ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = OLD_PLUGIN_SCRIPT ] ||
+    fail "preflight failure changed plugin scripts"
+[ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] ||
+    fail "preflight failure changed core"
+[ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] ||
+    fail "preflight failure changed config"
+cmp -s "$DBUS_STATE" "$TMP/install-dbus.before" || fail "preflight failure changed DBUS"
+[ ! -d "$UPGRADE_ROOT/backup" ] || fail "preflight failure created an upgrade backup"
+
 KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install-tmp" \
     sh "$PKG/install.sh" > "$TMP/upgrade-output" || fail "upgrade install"
 [ "$(dbus get softcenter_module_easytier_version)" = 1.0.1 ] ||
@@ -607,10 +634,12 @@ grep -F '软件中心插件版本号登记失败' "$TMP/version-fail-output" >/d
     fail "version registration failure was not explained"
 
 NEW_ROOT=$TMP/new-root
-mkdir -p "$NEW_ROOT"
+mkdir -p "$NEW_ROOT/bin" "$NEW_ROOT/scripts"
+cp "$SERVICE_ROOT/scripts/base.sh" "$NEW_ROOT/scripts/base.sh"
+cp "$MOCK_BIN/dbus" "$NEW_ROOT/bin/dbus"
 printf '%s\n' 'easytier_autostart=0' > "$TMP/new-dbus"
 export DBUS_STATE="$TMP/new-dbus"
-KS_DIR="$NEW_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/new-tmp" sh "$PKG/install.sh" >/dev/null ||
+PATH=/usr/bin:/bin KS_DIR="$NEW_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/new-tmp" sh "$PKG/install.sh" >/dev/null ||
     fail "new installation"
 cmp -s "$NEW_ROOT/bin/easytier-core" "$PKG/bin/easytier-core_arm32" ||
     fail "RT-AX56U armv7l did not select ARMv7 core"
@@ -632,5 +661,7 @@ cmp -s "$NEW_ROOT/bin/easytier-core" "$TMP/new-core-before" || fail "uninstall r
 [ "$(dbus get easytier_autostart)" = 0 ] || fail "uninstall removed autostart setting"
 [ ! -e "$NEW_ROOT/scripts/easytier_config.sh" ] || fail "uninstall kept lifecycle script"
 [ ! -e "$NEW_ROOT/init.d/V99easytier.sh" ] || fail "uninstall kept boot hook"
+[ -z "$(dbus get softcenter_module_easytier_version)" ] || fail "uninstall kept plugin version registration"
+[ -z "$(dbus get softcenter_module_easytier_install)" ] || fail "uninstall kept plugin install registration"
 
 echo "All lifecycle, event, upgrade, rollback, uninstall and mock-environment tests passed."

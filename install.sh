@@ -3,6 +3,8 @@
 PLUGIN_VERSION=1.0.1
 CORE_VERSION=2.6.4
 KS_DIR=${KS_DIR:-/koolshare}
+PATH=${PATH:+$PATH:}$KS_DIR/bin:$KS_DIR/scripts:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 TMP_ROOT=${EASYTIER_TMP_ROOT:-/tmp}
 SOURCE_DIR=${SOURCE_DIR:-$(cd "$(dirname "$0")" 2>/dev/null && pwd)}
 BASE_SH=$KS_DIR/scripts/base.sh
@@ -22,8 +24,12 @@ abort_install() {
         rm -f "$KS_DIR/bin/easytier-core"
     fi
     release_install_lock
-    say "安装已回滚。备份目录：${BACKUP_DIR:-未创建}"
-    say "如需手动恢复，执行：sh $KS_DIR/scripts/easytier_rollback.sh ${BACKUP_DIR:-<备份目录>}"
+    if [ "${BACKUP_READY:-0}" = 1 ]; then
+        say "安装已回滚。备份目录：$BACKUP_DIR"
+        say "如需手动恢复，执行：sh $KS_DIR/scripts/easytier_rollback.sh $BACKUP_DIR"
+    else
+        say "安装检查失败，尚未替换插件文件；无需回滚。"
+    fi
     exit 1
 }
 
@@ -148,7 +154,8 @@ check_arch() {
 }
 
 main() {
-    command -v dbus >/dev/null 2>&1 || abort_install "固件缺少必要命令：dbus，无法登记插件版本"
+    # Some Merlin ash builds omit the command builtin but provide type.
+    type dbus >/dev/null 2>&1 || abort_install "固件缺少必要命令：dbus，无法登记插件版本"
     [ -f "$SOURCE_DIR/install.sh" ] || abort_install "找不到安装包目录：$SOURCE_DIR"
     [ -f "$SOURCE_DIR/core-version.txt" ] || abort_install "安装包缺少 core-version.txt"
     package_platform=$(cat "$SOURCE_DIR/.valid" 2>/dev/null)

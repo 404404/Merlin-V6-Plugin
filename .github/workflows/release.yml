@@ -73,11 +73,13 @@ jobs:
           ## EasyTier KoolShare plugin ${{ steps.versions.outputs.release_version }}
 
           - Plugin changes: safe CLI lifecycle, asynchronous AP boot startup, idempotent service/firewall handling, and upgrade rollback support.
+          - Legacy Merlin ash compatibility: use the supported type builtin instead of command -v, preventing false dbus-missing install failures and skipped Web API acknowledgements. Installation and service scripts also restore required PATH directories.
           - Plugin version: ${{ steps.versions.outputs.release_version }} (base version ${{ steps.versions.outputs.plugin_version }}).
           - EasyTier core build baseline in new-install packages: official v${{ steps.versions.outputs.core_version }}, downloaded from the EasyTier release and verified against pinned SHA-256 values.
-          - Existing installations keep their current easytier-core and configuration. The installed device core version may be unknown; the installer does not query or replace it.
+          - Existing installations keep their current easytier-core, configuration and EasyTier DBUS settings. The installed device core version may be unknown; the installer does not query or replace it.
           - Packages: easytier_hnd.tar.gz and easytier_qca.tar.gz; checksums: SHA256SUMS.
           - ASUS RT-AX56U cold-boot verification: **Not performed by CI; real-device validation is still required.**
+          - This pre-release is for installation testing and is not recommended for critical production use before device validation.
           NOTES
 
       - name: Create release once, without overwriting existing assets

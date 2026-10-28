@@ -2,6 +2,8 @@
 # KoolShare EasyTier lifecycle manager. Compatible with BusyBox ash.
 
 KS_DIR=${EASYTIER_KS_DIR:-/koolshare}
+PATH=${PATH:+$PATH:}$KS_DIR/bin:$KS_DIR/scripts:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 RUN_DIR=${EASYTIER_RUN_DIR:-/var/run}
 TMP_DIR=${EASYTIER_TMP_DIR:-/tmp}
 PROC_ROOT=${EASYTIER_PROC_ROOT:-/proc}
@@ -44,7 +46,7 @@ done
 
 log_msg() {
     mkdir -p "$LOG_DIR" 2>/dev/null || :
-    if command -v echo_date >/dev/null 2>&1; then
+    if type echo_date >/dev/null 2>&1; then
         echo_date "$*" >> "$LOG_FILE"
     else
         printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG_FILE"
@@ -530,13 +532,13 @@ dispatch() {
     case "$OPERATION" in
         status)
             if pid=$(managed_pid); then
-                if [ -n "$API_REQUEST_ID" ] && command -v http_response >/dev/null 2>&1; then
+                if [ -n "$API_REQUEST_ID" ] && type http_response >/dev/null 2>&1; then
                     http_response "运行"
                 else
                     printf '运行\n'
                 fi
             else
-                if [ -n "$API_REQUEST_ID" ] && command -v http_response >/dev/null 2>&1; then
+                if [ -n "$API_REQUEST_ID" ] && type http_response >/dev/null 2>&1; then
                     http_response "停止"
                 else
                     printf '停止\n'
@@ -602,7 +604,7 @@ dispatch() {
 }
 
 if [ "$WEB_SUBMIT" = 1 ]; then
-    if command -v http_response >/dev/null 2>&1; then
+    if type http_response >/dev/null 2>&1; then
         http_response "${API_REQUEST_ID:-success}"
     fi
     (
