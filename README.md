@@ -16,7 +16,7 @@
 
 ## 固件命令要求
 
-安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`、`sha256sum`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。
+安装和运行依赖固件提供 `sh`、`ip`、`nvram`、KoolShare `dbus`、`sha256sum`，以及常用 BusyBox 工具（`awk`、`cat`、`chmod`、`cp`、`date`、`df`、`dirname`、`grep`、`mkdir`、`mv`、`rm`、`rmdir`、`sed`、`sleep`、`tail`、`tr`、`wc`）。安装器会在写入插件文件前检查这组命令。开机/周期任务还使用 KoolShare `cru`；连通性探测使用 `ping6` 或支持 `-6` 的 `ping`。安装器、运行时、迁移、卸载和回滚入口会将 KoolShare 与固件常见命令目录加入 PATH，并对 `ip`、`nvram`、`dbus` 做路径搜索。若设置了 `APIPV6_SYSTEM_PATHS`，其中目录会额外加入 PATH，不会替换固件标准目录。
 
 BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本身不能保证某个 applet 存在。若命令在 PATH 和标准固件目录中都不存在，安装器会报告该命令缺失；可通过 `busybox --list` 查看设备当前 BusyBox 提供的 applet。
 

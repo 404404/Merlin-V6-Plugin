@@ -3,8 +3,9 @@
 
 PLUGIN_VERSION=0.1.0
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
-APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
-PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
+APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
+PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
 TMP_ROOT=${APIPV6_TMP_ROOT:-/tmp}
 SOURCE_DIR=${APIPV6_SOURCE_DIR:-$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd)}
@@ -242,7 +243,10 @@ main() {
     setup_ip_path || missing_tools="$missing_tools ip"
     setup_dbus_path || missing_tools="$missing_tools dbus"
     APIPV6_NVRAM_CMD=$(resolve_nvram) || missing_tools="$missing_tools nvram"
-    [ -z "$missing_tools" ] || abort_install "固件缺少必要命令或工具：${missing_tools# }"
+    if [ -n "$missing_tools" ]; then
+        say "诊断：当前 PATH=$PATH"
+        abort_install "固件缺少必要命令或工具：${missing_tools# }"
+    fi
 
     [ -d "$SOURCE_DIR" ] || abort_install "找不到安装包目录：$SOURCE_DIR"
     [ -f "$SOURCE_DIR/.valid" ] || abort_install '安装包缺少 .valid 平台标记。'

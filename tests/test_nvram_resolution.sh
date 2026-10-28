@@ -12,7 +12,7 @@ done
 
 for file in "$ROOT/install.sh" "$ROOT/scripts/apipv6_config.sh" \
     "$ROOT/scripts/apipv6_migrate.sh" "$ROOT/uninstall.sh" "$ROOT/rollback.sh"; do
-    grep -Fq 'PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS' "$file" || {
+    grep -Fq 'PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS' "$file" || {
         printf 'Firmware PATH bootstrap is missing from %s\n' "${file#"$ROOT"/}" >&2
         exit 1
     }

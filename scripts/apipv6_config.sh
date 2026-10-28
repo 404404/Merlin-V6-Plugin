@@ -3,8 +3,9 @@
 
 PLUGIN_VERSION=0.1.0
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
-APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
-PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
+APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
+PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
 SYSCTL_ROOT=${APIPV6_SYSCTL_ROOT:-/proc/sys/net/ipv6/conf}
 RUN_DIR=${APIPV6_RUN_DIR:-$KS_DIR/var/apipv6}

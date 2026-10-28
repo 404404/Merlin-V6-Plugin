@@ -2,8 +2,9 @@
 # Removes only AP IPv6 Manager files and its own timer. Leaves addresses/routes alone.
 
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
-APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
-PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
+APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
+PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
 CONFIG=$KS_DIR/scripts/apipv6_config.sh
 MIGRATE=$KS_DIR/scripts/apipv6_migrate.sh

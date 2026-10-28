@@ -2,8 +2,9 @@
 # Restore only files listed by this plugin's own pre-upgrade backup.
 
 KS_DIR=${APIPV6_KS_DIR:-/koolshare}
-APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin}
-PATH=${PATH:+$PATH:}$APIPV6_SYSTEM_PATHS
+APIPV6_SYSTEM_PATHS=${APIPV6_SYSTEM_PATHS:-}
+APIPV6_DEFAULT_SYSTEM_PATHS=$KS_DIR/bin:$KS_DIR/scripts:/koolshare/bin:/koolshare/scripts:/jffs/softcenter/bin:/jffs/softcenter/scripts:/jffs/.koolshare/bin:/jffs/.koolshare/scripts:/usr/sbin:/sbin:/usr/bin:/bin
+PATH=${PATH:+$PATH:}${APIPV6_SYSTEM_PATHS:+$APIPV6_SYSTEM_PATHS:}$APIPV6_DEFAULT_SYSTEM_PATHS
 export PATH
 BACKUP_DIR=${1:-}
 

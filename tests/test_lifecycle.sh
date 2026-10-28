@@ -48,18 +48,19 @@ mkdir -p "$KS/init.d" "$APIPV6_SYSCTL_ROOT/br0" "$APIPV6_SYSCTL_ROOT/eth0" "$API
 # Simulate KoolShare invoking the installer with a restricted PATH. Firmware
 # ip/nvram and KoolShare dbus exist in their normal directories outside PATH.
 NO_FIRMWARE_COMMANDS=$TEMP/mocks-without-ip-nvram-dbus
+FIRMWARE_ONLY_PATH=$TEMP/firmware-only-path
 FIRMWARE_SBIN=$TEMP/firmware/usr/sbin
 make_path_without_firmware_commands "$NO_FIRMWARE_COMMANDS"
-mkdir -p "$FIRMWARE_SBIN" "$KS/bin"
+mkdir -p "$FIRMWARE_ONLY_PATH" "$FIRMWARE_SBIN" "$KS/bin"
 cp "$ROOT/tests/mocks/nvram" "$FIRMWARE_SBIN/nvram"
 cp "$ROOT/tests/mocks/ip" "$FIRMWARE_SBIN/ip"
 cp "$ROOT/tests/mocks/dbus" "$KS/bin/dbus"
 chmod 755 "$FIRMWARE_SBIN/nvram" "$FIRMWARE_SBIN/ip" "$KS/bin/dbus"
-install_log=$(PATH="$NO_FIRMWARE_COMMANDS" \
+install_log=$(PATH="$FIRMWARE_ONLY_PATH" \
     APIPV6_SYSTEM_PATHS="$FIRMWARE_SBIN" \
     APIPV6_NVRAM_SEARCH_DIRS="$FIRMWARE_SBIN" \
     APIPV6_IP_SEARCH_DIRS="$FIRMWARE_SBIN" \
-    APIPV6_SOURCE_DIR="$SOURCE" sh "$SOURCE/install.sh")
+    APIPV6_SOURCE_DIR="$SOURCE" /bin/sh "$SOURCE/install.sh")
 printf '%s\n' "$install_log" | grep -q 'AP 模式已通过 sw_mode=3、wlc_psta=0 检测' ||
     fail 'installer did not resolve nvram outside PATH and detect AP mode'
 printf '%s\n' "$install_log" | grep -q 'AP IPv6 Manager v0.1.0 安装成功' ||
