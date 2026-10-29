@@ -157,7 +157,9 @@ nodes_query() {
     nodes_child_pending=0
     [ "$nodes_exit" = 0 ] || { [ "$nodes_state" != ready ] || nodes_state=query_failed; }
     nodes_bytes=$(wc -c < "$nodes_dir/raw.$$")
-    if [ "$nodes_bytes" -gt 245760 ] || { [ "$nodes_state" = ready ] && [ "$nodes_bytes" = 0 ]; }; then
+    # Two Base64 layers (peer rows, then Web envelope) must remain below the
+    # kernel's single-argument limit when legacy http_response calls curl -d.
+    if [ "$nodes_bytes" -gt 65536 ] || { [ "$nodes_state" = ready ] && [ "$nodes_bytes" = 0 ]; }; then
         nodes_state=invalid_output
     fi
     # Discard a result if the core stopped/restarted while the CLI was reading.

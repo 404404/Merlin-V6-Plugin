@@ -21,7 +21,8 @@ CORE
 cat > "$TMP/ks/scripts/base.sh" <<'BASE'
 command() { return 127; }
 sha256sum() { return 127; }
-http_response() { printf '%s\n' "$1" > "$HTTP_RESPONSE_FILE"; }
+# Real legacy httpdb inserts callback text without JSON escaping.
+http_response() { printf '{"result":"%s"}\n' "$1" > "$HTTP_RESPONSE_FILE"; }
 BASE
 cat > "$TMP/mockbin/dbus" <<'MOCK'
 #!/bin/sh
@@ -88,17 +89,48 @@ query
 state_is ready
 [ "$(wc -l < "$CLI_CALLS" | tr -d ' ')" = 1 ] || fail 'cache spawned another CLI'
 busybox ash "$SERVICE" 123 nodes
-cmp -s "$HTTP_RESPONSE_FILE" "$TMP/result" || fail 'KoolShare nodes response differs'
+python3 - "$HTTP_RESPONSE_FILE" "$TMP/result" <<'PY'
+import base64, json, sys
+wire = json.load(open(sys.argv[1]))['result']
+assert wire.startswith('easytier-b64-v1:')
+assert len(wire) < 131072 and not any(c in wire for c in '\n\r"\\')
+assert json.loads(base64.b64decode(wire[16:])) == json.load(open(sys.argv[2]))
+PY
 if busybox ash "$SERVICE" 123 nodes web_submit; then fail 'nodes accepted Web config operation'; fi
+
+# The largest accepted rows still fit legacy curl's single-argument limit.
+python3 - "$TMP/peers.json" "$TMP/large-peers.json" <<'PY'
+import sys
+data = open(sys.argv[1], 'rb').read()
+open(sys.argv[2], 'wb').write(data + b' ' * (65536 - len(data)))
+PY
+invalidate
+PEERS_FIXTURE="$TMP/large-peers.json" busybox ash "$SERVICE" 124 nodes
+python3 - "$HTTP_RESPONSE_FILE" <<'PY'
+import base64, json, sys
+wire = json.load(open(sys.argv[1]))['result']
+assert len(wire) < 131072
+envelope = json.loads(base64.b64decode(wire[16:]))
+assert envelope['state'] == 'ready'
+assert len(base64.b64decode(envelope['payload'])) == 65536
+assert json.loads(base64.b64decode(envelope['payload']))[0]['cost'] == 'Local'
+PY
+printf ' ' >> "$TMP/large-peers.json"
+invalidate
+PEERS_FIXTURE="$TMP/large-peers.json" query
+state_is invalid_output
+invalidate
+query
+calls_before=$(wc -l < "$CLI_CALLS")
 
 # Reject an unrelated listener and non-local management setting without running CLI.
 invalidate
 NETSTAT_OWNER=999999 query
 state_is rpc_unverified
-[ "$(wc -l < "$CLI_CALLS" | tr -d ' ')" = 1 ] || fail 'queried unrelated listener'
+[ "$(wc -l < "$CLI_CALLS")" = "$calls_before" ] || fail 'queried unrelated listener'
 NETSTAT_ADDRESS=192.0.2.99 query
 state_is rpc_unverified
-[ "$(wc -l < "$CLI_CALLS" | tr -d ' ')" = 1 ] || fail 'trusted a listener not bound to loopback'
+[ "$(wc -l < "$CLI_CALLS")" = "$calls_before" ] || fail 'trusted a listener not bound to loopback'
 printf '%s\n' 'rpc_portal = "192.0.2.99:15888"' > "$EASYTIER_CONFIG_FILE"
 query
 state_is rpc_unsupported
@@ -163,6 +195,19 @@ import json, sys
 r=json.load(open(sys.argv[1]))
 assert r['core_version'] == '2.6.4' and r['version_source'] == 'fingerprint'
 PY
+busybox ash "$SERVICE" 125 nodes
+python3 - "$HTTP_RESPONSE_FILE" <<'PY'
+import base64, json, sys
+r=json.loads(base64.b64decode(json.load(open(sys.argv[1]))['result'][16:]))
+assert r['state'] == 'ready' and r['core_version'] == '2.6.4'
+assert r['version_source'] == 'fingerprint'
+PY
+EASYTIER_NODES_SCRIPT="$TMP/missing.sh" busybox ash "$SERVICE" 126 nodes
+python3 - "$HTTP_RESPONSE_FILE" <<'PY'
+import base64, json, sys
+r=json.loads(base64.b64decode(json.load(open(sys.argv[1]))['result'][16:]))
+assert r['state'] == 'helper_missing'
+PY
 
 # A different process must never inherit cached nodes or a cached core version.
 old_pid=$core_pid
@@ -184,4 +229,4 @@ PY
 cmp -s "$EASYTIER_CONFIG_FILE" "$TMP/config-before" || fail 'monitor changed configuration'
 [ ! -s "$DBUS_CALLS" ] || fail 'monitor touched DBUS'
 [ ! -s "$CORE_CALLS" ] || fail 'monitor executed core version query'
-echo 'Read-only node query, no-hash firmware, ownership, caching, timeout, concurrency and process-change tests passed.'
+echo 'Read-only nodes, legacy httpdb transport, payload limits, fingerprints, ownership, caching, timeout and concurrency tests passed.'

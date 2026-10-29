@@ -603,6 +603,8 @@ KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "upgrade replaced config"
 cmp -s "$UPGRADE_ROOT/bin/easytier-cli-plugin" "$PKG/bin/easytier-cli_arm32" || fail "upgrade did not install ARMv7 query helper"
 [ -f "$UPGRADE_ROOT/scripts/easytier_nodes.sh" ] || fail "upgrade did not install node helper"
+cmp -s "$UPGRADE_ROOT/res/icon-easytier.png" "$ROOT/res/easytier.png" || fail "upgrade did not install official icon"
+cmp -s "$UPGRADE_ROOT/res/easytier-icon-LICENSE" "$ROOT/res/EasyTier-LICENSE" || fail "upgrade did not install icon license"
 [ "$(dbus get easytier_autostart)" = 1 ] || fail "upgrade changed autostart DBUS"
 [ "$(dbus get easytier_network_name)" = KEEP_NAME ] || fail "upgrade changed network name"
 [ "$(dbus get easytier_network_secret)" = KEEP_SECRET ] || fail "upgrade changed secret"
@@ -617,6 +619,7 @@ KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/nul
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "rollback changed config"
 [ ! -e "$UPGRADE_ROOT/bin/easytier-cli-plugin" ] || fail "rollback kept newly installed query helper"
 [ ! -e "$UPGRADE_ROOT/res/easytier_nodes.js" ] || fail "rollback kept newly installed UI resource"
+[ ! -e "$UPGRADE_ROOT/res/easytier-icon-LICENSE" ] || fail "rollback kept newly installed icon license"
 
 # Automatic rollback selects the latest timestamped backup without non-POSIX test operators.
 latest_backup=$UPGRADE_ROOT/backup/easytier/20990101000000-999999
@@ -718,6 +721,7 @@ cmp -s "$NEW_ROOT/bin/easytier-core" "$TMP/new-core-before" || fail "uninstall r
 [ ! -e "$NEW_ROOT/bin/easytier-cli-plugin" ] || fail "uninstall kept plugin query helper"
 [ ! -e "$NEW_ROOT/scripts/easytier_nodes.sh" ] || fail "uninstall kept node script"
 [ ! -e "$NEW_ROOT/res/easytier_nodes.js" ] || fail "uninstall kept node UI resource"
+[ ! -e "$NEW_ROOT/res/easytier-icon-LICENSE" ] || fail "uninstall kept icon license"
 [ -z "$(dbus get softcenter_module_easytier_version)" ] || fail "uninstall kept plugin version registration"
 [ -z "$(dbus get softcenter_module_easytier_install)" ] || fail "uninstall kept plugin install registration"
 

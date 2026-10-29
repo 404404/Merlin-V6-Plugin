@@ -15,6 +15,22 @@
     function text(value, fallback) {
         return typeof value === "string" && /\S/.test(value) ? value.slice(0, 256) : (fallback || "—");
     }
+    function decodeUtf8(encoded) {
+        return decodeURIComponent(escape(root.atob(encoded)));
+    }
+    function parseEnvelope(response) {
+        var value = response && response.result;
+        if (typeof value === "string") {
+            if (value.length > 131072) throw new Error("oversized envelope");
+            if (value.indexOf("easytier-b64-v1:") === 0) value = decodeUtf8(value.slice(16));
+            value = JSON.parse(value);
+        }
+        // Also accept escaped JSON/object results on newer KoolShare builds.
+        if (!value || typeof value !== "object" || typeof value.state !== "string") {
+            throw new Error("invalid envelope");
+        }
+        return value;
+    }
     function normalize(rows) {
         if (!Array.isArray(rows) || rows.length > 512) throw new Error("invalid rows");
         var localCount = 0;
@@ -65,7 +81,7 @@
             body.appendChild(tr);
         });
         var collected = new Date(envelope.collected_at * 1000);
-        setText("easytier_nodes_message", "本机及 " + (rows.length - 1) + " 个节点 · 更新于 " + collected.toLocaleTimeString() + " · 流量为连接累计值");
+        setText("easytier_nodes_message", "本机及 " + (rows.length - 1) + " 个节点 · " + collected.toLocaleTimeString());
     }
     var mounted = false;
     function mount() {
@@ -90,10 +106,9 @@
                 success: function(response) {
                     var envelope = {state: "invalid_json"};
                     try {
-                        envelope = typeof response.result === "string" ? JSON.parse(response.result) : response.result;
-                        if (!envelope || typeof envelope.state !== "string") throw new Error("invalid envelope");
+                        envelope = parseEnvelope(response);
                         // Decode UTF-8 without requiring TextDecoder on older browsers.
-                        var rows = envelope.state === "ready" ? normalize(JSON.parse(decodeURIComponent(escape(root.atob(envelope.payload))))) : [];
+                        var rows = envelope.state === "ready" ? normalize(JSON.parse(decodeUtf8(envelope.payload))) : [];
                         render(envelope, rows);
                     } catch (ignore) {
                         render({state: "invalid_json", core_version: envelope && envelope.core_version}, []);
@@ -118,7 +133,7 @@
         });
         refresh(false);
     }
-    var api = {normalize: normalize, render: render, mount: mount};
+    var api = {parseEnvelope: parseEnvelope, normalize: normalize, render: render, mount: mount};
     if (typeof module !== "undefined" && module.exports) module.exports = api;
     root.EasyTierNodes = api;
 }(typeof window !== "undefined" ? window : globalThis));

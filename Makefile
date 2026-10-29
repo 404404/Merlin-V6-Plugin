@@ -65,7 +65,7 @@ package:
 		cp install.sh config.json.js uninstall.sh rollback.sh "$$pkg/"; \
 		cp scripts/easytier_config.sh scripts/easytier_nodes.sh "$$pkg/scripts/"; \
 		cp webs/Module_easytier.asp "$$pkg/webs/"; \
-		cp res/easytier.png res/easytier_nodes.js "$$pkg/res/"; \
+		cp res/easytier.png res/easytier_nodes.js res/EasyTier-LICENSE "$$pkg/res/"; \
 		cp init.d/V99easytier.sh init.d/S99easytier.sh init.d/N99easytier.sh "$$pkg/init.d/"; \
 		printf '%s\n' "$(CORE_VERSION)" > "$$pkg/core-version.txt"; \
 		printf '%s\n' "$$platform" > "$$pkg/.valid"; \

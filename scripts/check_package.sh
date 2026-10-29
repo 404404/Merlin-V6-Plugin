@@ -34,6 +34,9 @@ for platform in hnd qca; do
     test -x "$work/easytier/bin/easytier-cli_arm64"
     test -x "$work/easytier/scripts/easytier_nodes.sh"
     test -s "$work/easytier/res/easytier_nodes.js"
+    test -s "$work/easytier/res/EasyTier-LICENSE"
+    printf '%s  %s\n' '3ba8f0b0a7cd03127e2f088867181cb5ffc8b214182ac69d2ab32d58974f3bea' \
+        "$work/easytier/res/easytier.png" | sha256sum --check -
     test -x "$work/easytier/scripts/easytier_config.sh"
     test -x "$work/easytier/init.d/V99easytier.sh"
     test -x "$work/easytier/init.d/S99easytier.sh"

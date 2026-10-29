@@ -21,6 +21,8 @@ Phase 1 已实现插件生命周期、自启动、升级保护和自动构建发
 - 页面可手动刷新；默认每 15 秒刷新，隐藏页面暂停请求。同一时间只运行一个查询工具，成功缓存 10 秒，失败退避 60 秒；CLI 运行最多等待约 4 秒，并限制输出大小，异常不会停止核心。
 - 不要求设备安装 jq。文件指纹识别在可用时使用 sha256sum、BusyBox 对应 applet 或 OpenSSL；缺少工具时仍可通过 RPC 读取版本。只接受本机节点行的版本，绝不使用远端节点或 CLI 自身版本冒充核心版本。
 - 如 RPC 被关闭、端口无法核实或 CLI 与设备核心不兼容，会明确显示不可用原因，保留现有组网服务。需要在 AX56U 上确认 CLI 能正常运行及与现装核心的协议兼容性。
+- RC2 修复旧版 KoolShare httpdb 不转义回调 JSON 的问题：Web API 使用带版本前缀的 Base64 封装，SSH `nodes` 命令仍输出普通 JSON。查询结果限制为 64 KiB，确保经过封装后不超过固件单个命令参数的长度限制。节点提示显示在自动刷新选项旁，核心版本显示在状态表内。
+- 图标同步自官方 v2.6.4 [128×128 GUI 图标](https://github.com/EasyTier/EasyTier/blob/8428a89d2dabc94c97d370ec607c6ca142473626/easytier-gui/src-tauri/icons/128x128.png)，保持原始文件；SHA-256 为 `3ba8f0b0a7cd03127e2f088867181cb5ffc8b214182ac69d2ab32d58974f3bea`，许可证附在 `res/EasyTier-LICENSE`。页面脚本和图标带缓存版本参数，升级后建议强制刷新浏览器。
 
 字段依据：[官方 CLI peer 输出实现](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier/src/easytier-cli.rs)、[官方 GUI 状态页面](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier-web/frontend-lib/src/components/Status.vue)。
 
@@ -105,8 +107,8 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
 
 PR 合并到 `EasyTier-Merlin` 且 CI 全部通过后，先发布候选版：
 
-    git tag plugin-v1.1.0-rc.1
-    git push origin plugin-v1.1.0-rc.1
+    git tag plugin-v1.1.0-rc.2
+    git push origin plugin-v1.1.0-rc.2
 
 该 Tag 会创建 GitHub Pre-release，供离线安装包验证。只有 AX56U 实机冷启动和自启动验证通过后，才发布正式版：
 

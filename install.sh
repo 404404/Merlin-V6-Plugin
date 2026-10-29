@@ -106,6 +106,7 @@ backup_targets() {
         scripts/easytier_rollback.sh \
         webs/Module_easytier.asp \
         res/icon-easytier.png \
+        res/easytier-icon-LICENSE \
         config.json.js \
         init.d/V99easytier.sh \
         init.d/S99easytier.sh \
@@ -176,7 +177,7 @@ main() {
     for required in \
         config.json.js scripts/easytier_config.sh webs/Module_easytier.asp \
         uninstall.sh rollback.sh init.d/V99easytier.sh \
-        init.d/S99easytier.sh init.d/N99easytier.sh res/easytier.png
+        init.d/S99easytier.sh init.d/N99easytier.sh res/easytier.png res/EasyTier-LICENSE
     do
         [ -f "$SOURCE_DIR/$required" ] || abort_install "安装包缺少文件：$required"
     done
@@ -236,6 +237,8 @@ main() {
         abort_install "安装 Web 页面失败"
     install_file "$SOURCE_DIR/res/easytier.png" "$KS_DIR/res/icon-easytier.png" 644 ||
         abort_install "安装图标失败"
+    install_file "$SOURCE_DIR/res/EasyTier-LICENSE" "$KS_DIR/res/easytier-icon-LICENSE" 644 ||
+        abort_install "安装图标许可证失败"
     install_file "$SOURCE_DIR/config.json.js" "$KS_DIR/config.json.js" 644 ||
         abort_install "安装软件中心元数据失败"
     install_file "$SOURCE_DIR/init.d/V99easytier.sh" "$KS_DIR/init.d/V99easytier.sh" 755 ||

@@ -546,7 +546,10 @@ dispatch() {
                 nodes_result=$(nodes_query)
             fi
             if [ -n "$API_REQUEST_ID" ] && type http_response >/dev/null 2>&1; then
-                http_response "$nodes_result"
+                # Legacy httpdb embeds callbacks into {"result":"%s"} without
+                # JSON escaping. Send ASCII only; CLI output stays plain JSON.
+                nodes_web_result=$(printf '%s' "$nodes_result" | base64 | tr -d '\r\n')
+                http_response "easytier-b64-v1:$nodes_web_result"
             else
                 printf '%s\n' "$nodes_result"
             fi
