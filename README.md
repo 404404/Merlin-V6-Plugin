@@ -2,6 +2,8 @@
 
 **AP模式IPv6修复**
 
+维护分支：[IPv6-Fix-In-AP-Mode](https://github.com/404404/Merlin-V6-Plugin/tree/IPv6-Fix-In-AP-Mode) · [仓库首页与下载导航](https://github.com/404404/Merlin-V6-Plugin/blob/Main/README.md) · [EasyTier 插件](https://github.com/404404/Merlin-V6-Plugin/blob/EasyTier-Merlin/README.md)
+
 <img src="res/apipv6.png" alt="IPv6管理插件图标" width="240">
 
 | 项目 | 信息 |
@@ -44,7 +46,7 @@ BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本
    - [IPv6-Manage_qca.tar.gz](https://github.com/404404/Merlin-V6-Plugin/releases/download/apipv6-v0.1.0/IPv6-Manage_qca.tar.gz)：QCA 平台。
    - [SHA256SUMS](https://github.com/404404/Merlin-V6-Plugin/releases/download/apipv6-v0.1.0/SHA256SUMS)。
 2. 在电脑核对下载包的 SHA-256；若两个包和校验文件都已下载，可执行 `sha256sum --check SHA256SUMS`。
-3. 将对应离线包上传到 KoolShare 软件中心并安装。
+3. 将对应离线包上传到 KoolShare 软件中心并安装。请使用本插件的正式版专属链接；仓库还发布 EasyTier，`releases/latest` 可能指向另一个插件。GitHub 自动生成的 Source code 压缩包不是软件中心安装包。
 4. 安装器会检查固件命令、包标记与脚本语法，备份将被覆盖的插件文件，并注册 Web 页面。
 
 新安装默认关闭自动修复、周期检查和异常自动修复；升级保留已有开关与时间设置。安装器会更新新名称、描述和图标，不会调整 IPv6 参数或重启网络。安装完成后按 Ctrl+F5 强制刷新插件页面和软件中心，避免缓存旧页面或图标。
