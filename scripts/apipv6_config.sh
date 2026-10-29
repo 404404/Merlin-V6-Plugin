@@ -1012,7 +1012,7 @@ show_logs() {
 
 usage() {
     cat <<'EOF'
-AP IPv6 Manager 0.1.0
+IPv6管理 0.1.0
 Usage: apipv6_config.sh COMMAND [OPTIONS]
   status [--json]     Read current AP IPv6 state (never changes settings)
   check               Run a health check and record its timestamp

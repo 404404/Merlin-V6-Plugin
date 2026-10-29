@@ -102,7 +102,7 @@ main() {
         dbus save >/dev/null 2>&1 || :
     fi
 
-    say 'AP IPv6 Manager 已卸载。日志、配置和迁移备份已保留；未清除 IPv6 地址或路由。'
+    say 'IPv6管理 已卸载。日志、配置和迁移备份已保留；未清除 IPv6 地址或路由。'
 }
 
 main "$@"

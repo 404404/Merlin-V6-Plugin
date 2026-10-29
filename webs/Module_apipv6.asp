@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="-1">
-<title>软件中心 - AP IPv6 管理</title>
+<title>软件中心 - IPv6管理</title>
 <link rel="stylesheet" type="text/css" href="/index_style.css">
 <link rel="stylesheet" type="text/css" href="/form_style.css">
 <link rel="stylesheet" type="text/css" href="/usp_style.css">
@@ -249,7 +249,7 @@
         });
     }
     function clearLog() {
-        if (!window.confirm("清除 AP IPv6 Manager 日志？")) return;
+        if (!window.confirm("清除 IPv6管理 日志？")) return;
         api(["clear_log", "web_submit"], {}, 10000, function (data, failed) {
             if (failed || !data.ok) { setMessage(data.error || "日志清理失败", true); return; }
             byId("apipv6-log").value = "";
@@ -268,7 +268,7 @@
         window.setInterval(refreshStatus, 20000);
     }
     function menuHook() {
-        tabtitle[tabtitle.length - 1] = ["", "AP IPv6 管理"];
+        tabtitle[tabtitle.length - 1] = ["", "IPv6管理"];
         tablink[tablink.length - 1] = ["", "Module_apipv6.asp"];
     }
     window.apipv6TestHooks = { parseApiResponse: parseApiResponse, statusClass: statusClass, renderDetails: renderDetails };
@@ -292,7 +292,7 @@ function init() { window.initApipv6(); }
                 <tr><td align="left" valign="top">
                     <table id="FormTitle" class="FormTitle apipv6-content" border="0" cellpadding="5" cellspacing="0">
                         <tr><td valign="top">
-                            <div class="formfonttitle">AP IPv6 管理<span class="apipv6-version">v0.1.0</span>
+                            <div class="formfonttitle">IPv6管理<span class="apipv6-version">v0.1.0</span>
                                 <a class="apipv6-back" href="/Module_Softcenter.asp" title="返回软件中心"><img src="/images/backprev.png" alt="返回软件中心"></a>
                             </div>
                             <div class="splitLine"></div>
@@ -355,7 +355,7 @@ function init() { window.initApipv6(); }
                                         <tr><th>最近成功修复</th><td id="apipv6-last-repair">—</td></tr>
                                         <tr><th>最近修复失败原因</th><td id="apipv6-last-failure">—</td></tr>
                                         <tr><th>旧启动脚本迁移</th><td id="apipv6-migration">—</td></tr>
-                                        <tr><td colspan="2"><textarea id="apipv6-log" class="input_3_table" readonly aria-label="AP IPv6 Manager 日志"></textarea></td></tr>
+                                        <tr><td colspan="2"><textarea id="apipv6-log" class="input_3_table" readonly aria-label="IPv6管理 日志"></textarea></td></tr>
                                     </tbody>
                                 </table>
                                 <div class="apipv6-actions"><button type="button" id="apipv6-refresh-log" class="button_gen">刷新日志</button><button type="button" id="apipv6-clear-log" class="button_gen">清理插件日志</button></div>

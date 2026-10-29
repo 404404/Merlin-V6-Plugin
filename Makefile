@@ -1,4 +1,4 @@
-PLUGIN_NAME := apipv6
+PLUGIN_NAME := IPv6-Manage
 PLUGIN_VERSION ?= 0.1.0
 BUILD_DIR ?= build_tmp
 PLATFORMS := hnd qca

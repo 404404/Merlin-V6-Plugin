@@ -63,7 +63,7 @@ install_log=$(PATH="$FIRMWARE_ONLY_PATH" \
     APIPV6_SOURCE_DIR="$SOURCE" /bin/sh "$SOURCE/install.sh")
 printf '%s\n' "$install_log" | grep -q 'AP 模式已通过 sw_mode=3、wlc_psta=0 检测' ||
     fail 'installer did not resolve nvram outside PATH and detect AP mode'
-printf '%s\n' "$install_log" | grep -q 'AP IPv6 Manager v0.1.0 安装成功' ||
+printf '%s\n' "$install_log" | grep -q 'IPv6管理 v0.1.0 安装成功' ||
     fail 'installer did not resolve dbus from the KoolShare bin directory'
 cat > "$KS/init.d/V00apipv6.sh" <<'EOF'
 #!/bin/sh
@@ -83,6 +83,9 @@ install_from "$SOURCE" >/dev/null
 [ -x "$KS/scripts/apipv6_config.sh" ] || fail 'installer did not install the CLI/API script'
 [ -x "$KS/init.d/V99apipv6.sh" ] || fail 'installer did not install its boot hook'
 [ -f "$KS/webs/Module_apipv6.asp" ] || fail 'installer did not install the Web page'
+expect "$(dbus get softcenter_module_apipv6_title)" 'IPv6管理' 'software center must use the new title'
+expect "$(dbus get softcenter_module_apipv6_description)" 'AP模式IPv6修复' 'software center must use the new description'
+cmp -s "$ROOT/res/apipv6.png" "$KS/res/icon-apipv6.png" || fail 'installed icon differs from the supplied PNG'
 expect "$(dbus get apipv6_enabled)" 0 'automatic repair must default to off'
 expect "$(dbus get apipv6_health_enabled)" 0 'periodic checks must default to off'
 expect "$(read_hash "$KS/init.d/V00apipv6.sh")" "$legacy_hash" 'install must leave the old startup entry active until verification'
@@ -91,7 +94,13 @@ grep -q '^status=known_pending$' "$APIPV6_RUN_DIR/migration-state" || fail 'inst
 # Repeated install preserves user values and takes a new upgrade backup.
 dbus set apipv6_enabled=1
 dbus set apipv6_start_delay=77
+dbus set 'softcenter_module_apipv6_title=AP IPv6 管理'
+dbus set 'softcenter_module_apipv6_description=old description'
+printf 'old icon\n' > "$KS/res/icon-apipv6.png"
 install_from "$SOURCE" >/dev/null
+expect "$(dbus get softcenter_module_apipv6_title)" 'IPv6管理' 'upgrade must update the old title'
+expect "$(dbus get softcenter_module_apipv6_description)" 'AP模式IPv6修复' 'upgrade must update the old description'
+cmp -s "$ROOT/res/apipv6.png" "$KS/res/icon-apipv6.png" || fail 'upgrade must replace the old icon'
 expect "$(dbus get apipv6_enabled)" 1 'upgrade must preserve automatic repair setting'
 expect "$(dbus get apipv6_start_delay)" 77 'upgrade must preserve start delay'
 upgrade_log=$(install_from "$SOURCE")

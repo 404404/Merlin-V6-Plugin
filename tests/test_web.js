@@ -6,6 +6,11 @@ const html = fs.readFileSync("webs/Module_apipv6.asp", "utf8");
 const match = html.match(/<script>([\s\S]*?)<\/script>/);
 assert(match, "inline page controller is present");
 const controller = match[1];
+const metadata = JSON.parse(fs.readFileSync("config.json.js", "utf8"));
+assert.strictEqual(metadata.title, "IPv6管理");
+assert.strictEqual(metadata.description, "AP模式IPv6修复");
+assert(html.includes("软件中心 - IPv6管理") && html.includes('class="formfonttitle">IPv6管理'), "page uses the requested plugin name");
+assert.strictEqual(require("crypto").createHash("sha256").update(fs.readFileSync("res/apipv6.png")).digest("hex"), "fc5664e552a10a20454f4f63164c453104668d43fb026fbb4a23636ddbf4566f", "plugin icon is the user's original PNG");
 for (const resource of ["/index_style.css", "/form_style.css", "/usp_style.css", "/res/softcenter.css", "/state.js", "/res/softcenter.js"]) {
     assert(html.includes('"' + resource + '"'), "uses firmware resource " + resource);
 }
@@ -91,7 +96,7 @@ assert.strictEqual(cells[0].textContent, hostileText, "untrusted IPv6 text is di
 assert.strictEqual(cells[0].children.length, 0, "untrusted IPv6 text does not become a DOM node");
 window.initApipv6();
 assert.strictEqual(menusShown, 1, "initialization invokes the firmware menu builder");
-assert.strictEqual(tabtitle[0][1], "AP IPv6 管理");
+assert.strictEqual(tabtitle[0][1], "IPv6管理");
 assert.strictEqual(tablink[0][1], "Module_apipv6.asp");
 assert.strictEqual(requests.length, 2, "initial status and log requests are sent");
 assert.notStrictEqual(requests[0].payload.id, requests[1].payload.id, "simultaneous requests have distinct IDs");

@@ -1,4 +1,4 @@
-name: AP IPv6 Manager CI
+name: IPv6 Manage CI
 
 on:
   push:
@@ -114,8 +114,8 @@ jobs:
         with:
           name: apipv6-package-candidate
           path: |
-            apipv6_hnd.tar.gz
-            apipv6_qca.tar.gz
+            IPv6-Manage_hnd.tar.gz
+            IPv6-Manage_qca.tar.gz
             SHA256SUMS
           if-no-files-found: error
           retention-days: 1
@@ -142,8 +142,8 @@ jobs:
         with:
           name: apipv6-packages
           path: |
-            apipv6_hnd.tar.gz
-            apipv6_qca.tar.gz
+            IPv6-Manage_hnd.tar.gz
+            IPv6-Manage_qca.tar.gz
             SHA256SUMS
           if-no-files-found: error
           retention-days: 14

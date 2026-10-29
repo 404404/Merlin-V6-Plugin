@@ -1,10 +1,20 @@
-# AP IPv6 Manager v0.1.0
+# IPv6管理 v0.1.0
 
-**中文名称：AP IPv6 管理** · **内部模块：`apipv6`**
+**AP模式IPv6修复**
+
+<img src="res/apipv6.png" alt="IPv6管理插件图标" width="240">
+
+| 项目 | 信息 |
+| --- | --- |
+| 插件名称 | IPv6管理 |
+| 插件描述 | AP模式IPv6修复 |
+| 当前版本 | v0.1.0 正式版 |
+| 安装包名称 | IPv6-Manage |
+| 内部模块标识 | `apipv6`，用于兼容已有安装与升级 |
 
 这是一个面向 ASUS Merlin / KoolShare 固件 AP 模式的独立 IPv6 客户端管理插件。它检查 `br0` 上的 SLAAC 参数、IPv6 地址与默认路由，并可在用户启用后恢复 `br0` 的三个接口级参数。
 
-本项目当前处于开发版。CI 模拟测试不能代替真实 Merlin 固件与 RT-AX56U 的验收。
+本版本按用户确认发布为 v0.1.0 正式版。用户已反馈 RT-AX56U 上安装、运行与状态信息读取正常；CI 覆盖功能、安全、生命周期及精简 Merlin ash 兼容性。开机自动修复、冷启动与迁移恢复等实机项目的记录范围见文末。
 
 ## 适用范围
 
@@ -28,18 +38,22 @@ BusyBox 是否包含某个 applet 由固件构建配置决定，ARMv7l 架构本
 
 ## 安装
 
-1. 从 GitHub Actions Artifact 下载 `apipv6_hnd.tar.gz` 或 `apipv6_qca.tar.gz`，并下载同一次构建的 `SHA256SUMS`。
-2. 在电脑上执行 `sha256sum --check SHA256SUMS`。
+1. 从 [v0.1.0 正式版](https://github.com/404404/Merlin-V6-Plugin/releases/tag/apipv6-v0.1.0) 下载对应平台安装包和 `SHA256SUMS`：
+
+   - [IPv6-Manage_hnd.tar.gz](https://github.com/404404/Merlin-V6-Plugin/releases/download/apipv6-v0.1.0/IPv6-Manage_hnd.tar.gz)：RT-AX56U 等 HND 平台。
+   - [IPv6-Manage_qca.tar.gz](https://github.com/404404/Merlin-V6-Plugin/releases/download/apipv6-v0.1.0/IPv6-Manage_qca.tar.gz)：QCA 平台。
+   - [SHA256SUMS](https://github.com/404404/Merlin-V6-Plugin/releases/download/apipv6-v0.1.0/SHA256SUMS)。
+2. 在电脑核对下载包的 SHA-256；若两个包和校验文件都已下载，可执行 `sha256sum --check SHA256SUMS`。
 3. 将对应离线包上传到 KoolShare 软件中心并安装。
 4. 安装器会检查固件命令、包标记与脚本语法，备份将被覆盖的插件文件，并注册 Web 页面。
 
-安装默认将自动修复、周期检查和异常自动修复全部设为关闭。安装器不会调整 IPv6 参数，也不会重启网络。
+新安装默认关闭自动修复、周期检查和异常自动修复；升级保留已有开关与时间设置。安装器会更新新名称、描述和图标，不会调整 IPv6 参数或重启网络。安装完成后按 Ctrl+F5 强制刷新插件页面和软件中心，避免缓存旧页面或图标。
 
 ## Web 管理
 
 页面沿用 Merlin / KoolShare 的 `state.js` 菜单初始化、顶部栏、侧边栏、标签页、原生表格与按钮，并继承固件的 `sc_skin` 皮肤；不加载 Bootstrap 或覆盖页面全局背景。升级后请强制刷新页面，避免浏览器继续使用旧控制器。
 
-页面为 KoolShare 软件中心的 **AP IPv6 管理**，包含：
+页面为 KoolShare 软件中心的 **IPv6管理**，包含：
 
 - 当前模式、健康状态、首选全球单播地址、地址前缀、RA 默认网关与探测结果。
 - br0 上全部 IPv6 地址、类型、Preferred / Deprecated 状态、前缀长度与生命周期。
@@ -137,9 +151,9 @@ CI 在 Linux Runner 上执行 POSIX sh / BusyBox ash / ShellCheck、Mock 集成�
 
 ## RT-AX56U 实机验收
 
-验收命令、冷启动步骤、迁移与回滚步骤见 [docs/AX56U-ACCEPTANCE.md](docs/AX56U-ACCEPTANCE.md)。该过程尚未在真实 RT-AX56U 上执行。
+验收命令、冷启动步骤、迁移与回滚步骤见 [docs/AX56U-ACCEPTANCE.md](docs/AX56U-ACCEPTANCE.md)。用户已于 2026-10-29 反馈 RC8/RC9 在真实设备上安装运行成功、信息可正常获取，并授权正式发布。该反馈不代表所有冷启动、上游 RA 中断、自动修复、卸载及迁移回滚项目均已实机验收；这些项目请按文档逐项记录。
 
-### 旧 httpdb 响应兼容（RC8）
+### 旧 httpdb 响应兼容
 
 旧软件中心会直接拼接 `{"result":"%s"}`，不能直接传入含双引号的 JSON。插件在 HTTP 回调中使用带版本标记的 ASCII 十六进制载荷，页面验证并还原 UTF-8 JSON；CLI 输出仍是 JSON。编码仅使用已要求的 awk，不依赖 base64、od 或 jq。响应体通过临时文件提交，回调完成后删除。
 

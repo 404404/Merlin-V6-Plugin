@@ -337,8 +337,8 @@ main() {
     dbus set "softcenter_module_apipv6_version=$PLUGIN_VERSION" || abort_install '无法注册软件中心版本。'
     dbus set softcenter_module_apipv6_install=1 || abort_install '无法注册软件中心安装状态。'
     dbus set softcenter_module_apipv6_name=apipv6 || abort_install '无法注册软件中心模块名。'
-    dbus set 'softcenter_module_apipv6_title=AP IPv6 管理' || abort_install '无法注册软件中心标题。'
-    dbus set 'softcenter_module_apipv6_description=Merlin AP 模式 IPv6 SLAAC 管理与诊断' || abort_install '无法注册软件中心说明。'
+    dbus set 'softcenter_module_apipv6_title=IPv6管理' || abort_install '无法注册软件中心标题。'
+    dbus set 'softcenter_module_apipv6_description=AP模式IPv6修复' || abort_install '无法注册软件中心说明。'
     dbus save >/dev/null 2>&1 || abort_install '软件中心 DBUS 配置保存失败。'
 
     "$KS_DIR/scripts/apipv6_migrate.sh" inspect >/dev/null 2>&1 || :
@@ -363,7 +363,7 @@ main() {
     else
         say "当前 sw_mode=${sw_mode:-unknown}、wlc_psta=$wlc_psta；插件只允许只读诊断，直到确认 AP 模式。"
     fi
-    say "AP IPv6 Manager v$PLUGIN_VERSION 安装成功；本次安装没有修改网络配置。"
+    say "IPv6管理 v$PLUGIN_VERSION 安装成功；本次安装没有修改网络配置。"
     say "当前设置：开机自动修复$(switch_label apipv6_enabled)；周期检查$(switch_label apipv6_health_enabled)；异常自动修复$(switch_label apipv6_repair_on_error)。"
     say '新安装默认关闭自动任务；升级保留原设置。安装完成不代表 Web 通信或 IPv6 实机验收通过。'
     say "升级备份：$BACKUP_DIR"

@@ -11,7 +11,7 @@ script_version=$(sed -n 's/^PLUGIN_VERSION=//p' "$ROOT/scripts/apipv6_config.sh"
 
 build_packages() {
     cd "$ROOT"
-    rm -rf "$BUILD_DIR" apipv6_hnd.tar.gz apipv6_qca.tar.gz SHA256SUMS
+    rm -rf "$BUILD_DIR" IPv6-Manage_hnd.tar.gz IPv6-Manage_qca.tar.gz SHA256SUMS
     for platform in hnd qca; do
         stage=$BUILD_DIR/$platform
         root=$stage/apipv6
@@ -28,14 +28,14 @@ build_packages() {
         chmod 644 "$root/config.json.js" "$root/README.md" "$root/CHANGELOG.md" \
             "$root/webs/Module_apipv6.asp" "$root/res/apipv6.png" "$root/.valid"
         tar --sort=name --mtime='UTC 2020-01-01' --owner=0 --group=0 --numeric-owner \
-            -czf "$ROOT/apipv6_$platform.tar.gz" -C "$stage" apipv6
+            -czf "$ROOT/IPv6-Manage_$platform.tar.gz" -C "$stage" apipv6
     done
-    (cd "$ROOT" && sha256sum apipv6_hnd.tar.gz apipv6_qca.tar.gz > SHA256SUMS)
-    printf 'Built AP IPv6 Manager v%s HND and QCA packages.\n' "$PLUGIN_VERSION"
+    (cd "$ROOT" && sha256sum IPv6-Manage_hnd.tar.gz IPv6-Manage_qca.tar.gz > SHA256SUMS)
+    printf 'Built IPv6 Manage v%s HND and QCA packages.\n' "$PLUGIN_VERSION"
 }
 
 case "${1:-all}" in
     package|all) build_packages ;;
-    clean) rm -rf "$BUILD_DIR" "$ROOT/apipv6_hnd.tar.gz" "$ROOT/apipv6_qca.tar.gz" "$ROOT/SHA256SUMS" ;;
+    clean) rm -rf "$BUILD_DIR" "$ROOT/IPv6-Manage_hnd.tar.gz" "$ROOT/IPv6-Manage_qca.tar.gz" "$ROOT/SHA256SUMS" ;;
     *) printf '%s\n' 'Usage: build_package.sh [clean|package|all]' >&2; exit 2 ;;
 esac

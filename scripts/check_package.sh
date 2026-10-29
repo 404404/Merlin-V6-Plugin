@@ -6,13 +6,13 @@ CHECK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apipv6-package-check.XXXXXX")
 trap 'rm -rf "$CHECK_DIR"' EXIT HUP INT TERM
 
 cd "$ROOT"
-[ -s apipv6_hnd.tar.gz ] || { echo 'Missing or empty apipv6_hnd.tar.gz' >&2; exit 1; }
-[ -s apipv6_qca.tar.gz ] || { echo 'Missing or empty apipv6_qca.tar.gz' >&2; exit 1; }
+[ -s IPv6-Manage_hnd.tar.gz ] || { echo 'Missing or empty IPv6-Manage_hnd.tar.gz' >&2; exit 1; }
+[ -s IPv6-Manage_qca.tar.gz ] || { echo 'Missing or empty IPv6-Manage_qca.tar.gz' >&2; exit 1; }
 [ -s SHA256SUMS ] || { echo 'Missing or empty SHA256SUMS' >&2; exit 1; }
 sha256sum --check SHA256SUMS
 
 for platform in hnd qca; do
-    archive="apipv6_$platform.tar.gz"
+    archive="IPv6-Manage_$platform.tar.gz"
     listing="$CHECK_DIR/$platform.list"
     tar -tzf "$archive" > "$listing"
     while IFS= read -r entry; do
@@ -46,6 +46,7 @@ for platform in hnd qca; do
     metadata_version=$(sed -n 's/^[[:space:]]*"plugin_version":[[:space:]]*"\([^"]*\)".*/\1/p' "$root/config.json.js")
     script_version=$(sed -n 's/^PLUGIN_VERSION=//p' "$root/scripts/apipv6_config.sh" | head -n 1)
     [ "$metadata_version" = "$script_version" ] || { echo "Version mismatch in $archive" >&2; exit 1; }
+    perl -MJSON::PP -Mutf8 -e 'local $/; my $j=decode_json(<>); die "Wrong branding or module identity\n" unless $j->{module} eq "apipv6" && $j->{title} eq "IPv6管理" && $j->{description} eq "AP模式IPv6修复" && $j->{home_url} eq "Module_apipv6.asp" && $j->{version} eq $j->{plugin_version}' "$root/config.json.js"
     if find "$root" -type f | grep -Ei 'easytier|module_easytier'; then
         echo "Legacy plugin file found in $archive" >&2
         exit 1
@@ -56,5 +57,6 @@ for platform in hnd qca; do
     fi
     png_signature=$(od -An -t x1 -N 8 "$root/res/apipv6.png" | tr -d ' \n')
     [ "$png_signature" = 89504e470d0a1a0a ] || { echo 'Invalid PNG signature' >&2; exit 1; }
+    printf '%s  %s\n' 'fc5664e552a10a20454f4f63164c453104668d43fb026fbb4a23636ddbf4566f' "$root/res/apipv6.png" | sha256sum --check -
     echo "$archive: package layout, scripts, metadata, platform marker, and PNG verified"
 done
