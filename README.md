@@ -1,8 +1,8 @@
 # EasyTier KoolShare 插件
 
-本仓库维护 KoolShare Merlin 软件中心插件，用于在华硕路由器上运行 EasyTier。
+本分支维护 KoolShare Merlin 软件中心插件，用于在华硕路由器上运行 EasyTier。
 
-开发及维护分支：[EasyTier-Merlin](https://github.com/404404/Merlin-V6-Plugin/tree/EasyTier-Merlin)。默认 `Main` 刻意保留为空；AP IPv6 插件在独立分支维护。
+开发及维护分支：[EasyTier-Merlin](https://github.com/404404/Merlin-V6-Plugin/tree/EasyTier-Merlin)。默认 [Main](https://github.com/404404/Merlin-V6-Plugin/blob/Main/README.md) 提供两个插件的导航与正式下载入口；[IPv6管理](https://github.com/404404/Merlin-V6-Plugin/blob/IPv6-Fix-In-AP-Mode/README.md) 在独立分支维护。
 
 ## 正式版下载
 
@@ -57,7 +57,7 @@
 
 ## KoolShare 离线安装
 
-1. 从本仓库 [Releases](https://github.com/404404/Merlin-V6-Plugin/releases) 下载 easytier_hnd.tar.gz 或 easytier_qca.tar.gz，并一并下载 SHA256SUMS。
+1. 从 [EasyTier v1.1.0 正式版](https://github.com/404404/Merlin-V6-Plugin/releases/tag/plugin-v1.1.0) 下载 easytier_hnd.tar.gz 或 easytier_qca.tar.gz，并一并下载同一 Release 下的 SHA256SUMS。仓库同时发布 IPv6管理，请使用 EasyTier 专属链接；GitHub 自动生成的 Source code 压缩包不是软件中心安装包。
 2. 在电脑上校验：下载两个包时运行 `sha256sum --check SHA256SUMS`；仅下载 HND 包时运行 `grep '  easytier_hnd.tar.gz$' SHA256SUMS | sha256sum --check -`。不要求在路由器上安装 sha256sum。
 3. 在 KoolShare 软件中心使用“离线安装”上传与固件平台相符的包。
 4. 安装会备份要替换的插件脚本和页面。现有 easytier-core、/koolshare/configs/easytier.conf、网络名称、密钥、节点配置和 easytier_autostart DBUS 值会保留。
@@ -122,7 +122,7 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
 
 .github/workflows/ci.yml 在以下情况下运行：
 
-- Pull Request：静态检查、BusyBox ash 语法、mock 生命周期与安装测试、测试核心打包结构。
+- 目标分支为 `EasyTier-Merlin` 的 Pull Request：静态检查、BusyBox ash 语法、mock 生命周期与安装测试、测试核心打包结构，之后构建已校验的官方核心安装包。
 - 推送到开发分支 `EasyTier-Merlin`：上述测试通过后，再下载固定版本的官方核心、校验 SHA-256 并构建 HND/QCA 安装包。
 - Actions 手动触发：打开 Actions → EasyTier CI → Run workflow；成功后从该次运行下载 easytier-packages 工件。
 
@@ -138,7 +138,7 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
     git tag -a plugin-v1.1.1 <已通过CI的提交SHA> -m 'EasyTier plugin 1.1.1'
     git push origin plugin-v1.1.1
 
-已发布的 Tag 不覆盖或移动；候选版编号也不可重复使用。默认 `Main` 保持为空，不需要将此分支合并回 Main 才能发布。
+已发布的 Tag 不覆盖或移动；候选版编号也不可重复使用。默认 `Main` 用作项目导航，不需要将此分支合并回 Main 才能发布。
 
 Release 标题和说明会分别标明插件版本与 EasyTier 官方核心构建版本。CI 不会执行 ARM 核心，也不能替代 RT-AX56U 实机测试。每次 Release 都会明确标注 AX56U 冷启动是否完成验证。
 
