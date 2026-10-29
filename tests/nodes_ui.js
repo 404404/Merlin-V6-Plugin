@@ -87,6 +87,7 @@ assert(page.indexOf('id="easytier_status_text"') < page.indexOf('id="easytier_co
 assert(page.indexOf('id="easytier_core_version"') < page.indexOf('id="easytier_nodes_auto"'));
 assert(/id="easytier_nodes_auto"[^\n]*\n\s*<span id="easytier_nodes_message"/.test(page));
 assert(/#easytier_nodes_message\s*\{[^}]*margin-left:8ch/.test(page));
-assert(page.includes('/res/easytier_nodes.js?v=1.1.0-rc.2'));
-assert(page.includes('class="easytier-logo"'));
+assert(page.includes('/res/easytier_nodes.js?v=1.1.0'));
+assert(!page.includes('easytier-logo'));
+assert(!page.includes('icon-easytier.png')); // No custom page logo or favicon request.
 console.log("Node UI legacy transport, UTF-8, versions, XSS, polling, failure states and layout tests passed.");

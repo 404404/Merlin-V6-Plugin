@@ -563,12 +563,17 @@ tar -xzf "$ROOT/easytier_hnd.tar.gz" -C "$PKG_STAGE"
 PKG=$PKG_STAGE/easytier
 
 UPGRADE_ROOT=$TMP/upgrade-root
-mkdir -p "$UPGRADE_ROOT/bin" "$UPGRADE_ROOT/configs" "$UPGRADE_ROOT/scripts"
+mkdir -p "$UPGRADE_ROOT/bin" "$UPGRADE_ROOT/configs" "$UPGRADE_ROOT/scripts" "$UPGRADE_ROOT/res"
 cp "$SERVICE_ROOT/scripts/base.sh" "$UPGRADE_ROOT/scripts/base.sh"
 printf '%s\n' 'current-device-core-do-not-replace' > "$UPGRADE_ROOT/bin/easytier-core"
 chmod 755 "$UPGRADE_ROOT/bin/easytier-core"
 printf '%s\n' 'current-user-config-do-not-replace' > "$UPGRADE_ROOT/configs/easytier.conf"
 printf '%s\n' 'OLD_PLUGIN_SCRIPT' > "$UPGRADE_ROOT/scripts/easytier_config.sh"
+printf '%s\n' 'OLD_PLUGIN_ICON' > "$UPGRADE_ROOT/res/icon-easytier.png"
+printf '%s\n' 'OTHER_PLUGIN_ICON' > "$UPGRADE_ROOT/res/icon-unrelated.png"
+# Software center serves /res/icon-easytier.png from this canonical file.
+mkdir -p "$TMP/www/res"
+ln -s "$UPGRADE_ROOT/res/icon-easytier.png" "$TMP/www/res/icon-easytier.png"
 printf '%s\n' 'easytier_autostart=1' 'easytier_network_name=KEEP_NAME' 'easytier_network_secret=KEEP_SECRET' 'easytier_config_content_encoded=KEEP_CONFIG' > "$TMP/install-dbus"
 export DBUS_STATE="$TMP/install-dbus"
 export DBUS_LOG="$TMP/install-dbus.log"
@@ -604,6 +609,8 @@ KS_DIR="$UPGRADE_ROOT" EASYTIER_TEST_ARCH=armv7l EASYTIER_TMP_ROOT="$TMP/install
 cmp -s "$UPGRADE_ROOT/bin/easytier-cli-plugin" "$PKG/bin/easytier-cli_arm32" || fail "upgrade did not install ARMv7 query helper"
 [ -f "$UPGRADE_ROOT/scripts/easytier_nodes.sh" ] || fail "upgrade did not install node helper"
 cmp -s "$UPGRADE_ROOT/res/icon-easytier.png" "$ROOT/res/easytier.png" || fail "upgrade did not install official icon"
+cmp -s "$TMP/www/res/icon-easytier.png" "$ROOT/res/easytier.png" || fail "software center resource still serves old icon"
+[ "$(cat "$UPGRADE_ROOT/res/icon-unrelated.png")" = OTHER_PLUGIN_ICON ] || fail "upgrade changed another plugin icon"
 cmp -s "$UPGRADE_ROOT/res/easytier-icon-LICENSE" "$ROOT/res/EasyTier-LICENSE" || fail "upgrade did not install icon license"
 [ "$(dbus get easytier_autostart)" = 1 ] || fail "upgrade changed autostart DBUS"
 [ "$(dbus get easytier_network_name)" = KEEP_NAME ] || fail "upgrade changed network name"
@@ -615,6 +622,7 @@ backup=$(find "$UPGRADE_ROOT/backup/easytier" -mindepth 1 -maxdepth 1 -type d | 
 KS_DIR="$UPGRADE_ROOT" sh "$UPGRADE_ROOT/scripts/easytier_rollback.sh" >/dev/null ||
     fail "manual rollback"
 [ "$(cat "$UPGRADE_ROOT/scripts/easytier_config.sh")" = OLD_PLUGIN_SCRIPT ] || fail "rollback did not restore script"
+[ "$(cat "$UPGRADE_ROOT/res/icon-easytier.png")" = OLD_PLUGIN_ICON ] || fail "rollback did not restore prior icon"
 [ "$(cat "$UPGRADE_ROOT/bin/easytier-core")" = current-device-core-do-not-replace ] || fail "rollback changed core"
 [ "$(cat "$UPGRADE_ROOT/configs/easytier.conf")" = current-user-config-do-not-replace ] || fail "rollback changed config"
 [ ! -e "$UPGRADE_ROOT/bin/easytier-cli-plugin" ] || fail "rollback kept newly installed query helper"

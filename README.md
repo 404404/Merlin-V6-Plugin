@@ -2,15 +2,36 @@
 
 本仓库维护 KoolShare Merlin 软件中心插件，用于在华硕路由器上运行 EasyTier。
 
+开发及维护分支：[EasyTier-Merlin](https://github.com/404404/Merlin-V6-Plugin/tree/EasyTier-Merlin)。默认 `Main` 刻意保留为空；AP IPv6 插件在独立分支维护。
+
+## 正式版下载
+
+- [EasyTier 插件 v1.1.0 Release](https://github.com/404404/Merlin-V6-Plugin/releases/tag/plugin-v1.1.0)
+- **ASUS RT-AX56U / KoolShare HND 固件：[easytier_hnd.tar.gz](https://github.com/404404/Merlin-V6-Plugin/releases/download/plugin-v1.1.0/easytier_hnd.tar.gz)**
+- QCA 固件：[easytier_qca.tar.gz](https://github.com/404404/Merlin-V6-Plugin/releases/download/plugin-v1.1.0/easytier_qca.tar.gz)
+- [SHA256SUMS](https://github.com/404404/Merlin-V6-Plugin/releases/download/plugin-v1.1.0/SHA256SUMS)
+
 ## 版本与核心
 
-- 开发中的插件版本：**1.1.0**（节点信息与安全版本识别）
+- 正式插件版本：**1.1.0**（AP 自启动、节点信息与安全版本识别）
 - 新安装包的核心构建基线：**EasyTier 官方 v2.6.4**
 - 核心来源：官方 [EasyTier v2.6.4 Release](https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4)，构建前按仓库 Makefile 中固定的 SHA-256 校验。
 - 插件升级会默认保留设备上现有的 easytier-core。插件版本、构建包核心版本和设备当前核心版本是不同信息。
 - 设备当前核心版本通过本机 RPC 返回值读取；也可对运行中程序的文件指纹作精确匹配。不会运行 easytier-core --version。无法识别时明确显示“未知”；安装包内 v2.6.4 不代表设备现装核心版本。
 
-Phase 1 已实现插件生命周期、自启动、升级保护和自动构建发布。用户于 2026-10-28 反馈 AX56U 重启后可以自行启动；节点查询功能仍需另行实机验证。当前下一轮开发增加只读节点面板和安全版本识别，继续保留设备核心，不开发 IPv6 插件。
+已实现插件生命周期、AP 模式自启动、升级保护、只读节点面板、安全版本识别和自动构建发布。升级默认保留设备核心。
+
+### RT-AX56U 实机反馈
+
+| 项目 | 用户反馈及验证边界 |
+| --- | --- |
+| AP 模式重启自启动 | 2026-10-28 用户反馈重启后能够自行启动 |
+| Web 功能及节点数据采集 | 2026-10-29 用户安装 RC2 后确认功能、数据采集正常 |
+| 设备核心版本 | 后端已通过文件指纹识别 v2.6.4，并通过本机 RPC 返回节点版本 |
+| 软件中心图标 | 使用官方原图；用户反馈旧图标未更新，需检查设备文件及浏览器缓存；正式版移除页面内图标 |
+| 断电后冷启动、其他型号与固件 | 尚无逐项验证记录；CI 及上述反馈不能替代这些实机验证 |
+
+此次正式发布获得用户确认。记录的是用户已反馈的结果，不扩大为所有设备、全部测试场景均已通过。
 
 ## 节点信息与核心版本
 
@@ -20,9 +41,10 @@ Phase 1 已实现插件生命周期、自启动、升级保护和自动构建发
 - 采用官方 CLI 的普通 peer JSON 行列表，不调用可能包含完整配置和密钥的 verbose/node/config 查询。面板通过软件中心现有 API 返回数据，查询缓存位于权限为 700 的私有 `/tmp/easytier-nodes` 目录。
 - 页面可手动刷新；默认每 15 秒刷新，隐藏页面暂停请求。同一时间只运行一个查询工具，成功缓存 10 秒，失败退避 60 秒；CLI 运行最多等待约 4 秒，并限制输出大小，异常不会停止核心。
 - 不要求设备安装 jq。文件指纹识别在可用时使用 sha256sum、BusyBox 对应 applet 或 OpenSSL；缺少工具时仍可通过 RPC 读取版本。只接受本机节点行的版本，绝不使用远端节点或 CLI 自身版本冒充核心版本。
-- 如 RPC 被关闭、端口无法核实或 CLI 与设备核心不兼容，会明确显示不可用原因，保留现有组网服务。需要在 AX56U 上确认 CLI 能正常运行及与现装核心的协议兼容性。
+- 如 RPC 被关闭、端口无法核实或 CLI 与设备核心不兼容，会明确显示不可用原因，保留现有组网服务。其他设备需单独确认查询工具与现装核心的兼容性。
 - RC2 修复旧版 KoolShare httpdb 不转义回调 JSON 的问题：Web API 使用带版本前缀的 Base64 封装，SSH `nodes` 命令仍输出普通 JSON。查询结果限制为 64 KiB，确保经过封装后不超过固件单个命令参数的长度限制。节点提示显示在自动刷新选项旁，核心版本显示在状态表内。
-- 图标同步自官方 v2.6.4 [128×128 GUI 图标](https://github.com/EasyTier/EasyTier/blob/8428a89d2dabc94c97d370ec607c6ca142473626/easytier-gui/src-tauri/icons/128x128.png)，保持原始文件；SHA-256 为 `3ba8f0b0a7cd03127e2f088867181cb5ffc8b214182ac69d2ab32d58974f3bea`，许可证附在 `res/EasyTier-LICENSE`。页面脚本和图标带缓存版本参数，升级后建议强制刷新浏览器。
+- 软件中心图标同步自官方 v2.6.4 [128×128 GUI 图标](https://github.com/EasyTier/EasyTier/blob/8428a89d2dabc94c97d370ec607c6ca142473626/easytier-gui/src-tauri/icons/128x128.png)，保持原始文件；SHA-256 为 `3ba8f0b0a7cd03127e2f088867181cb5ffc8b214182ac69d2ab32d58974f3bea`，许可证附在 `res/EasyTier-LICENSE`。安装到 `/koolshare/res/icon-easytier.png`，对应软件中心请求 `/res/icon-easytier.png`。插件页面移除额外图标和自定义 favicon。
+- 升级后用 Ctrl+F5 强制刷新软件中心及插件页面；手机浏览器可清除路由器站点缓存后重新打开。软件中心使用固定图标 URL，浏览器可能继续显示缓存的旧图；本插件不会修改软件中心页面或其他插件来强制刷新缓存。
 
 字段依据：[官方 CLI peer 输出实现](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier/src/easytier-cli.rs)、[官方 GUI 状态页面](https://github.com/EasyTier/EasyTier/blob/v2.6.4/easytier-web/frontend-lib/src/components/Status.vue)。
 
@@ -36,10 +58,11 @@ Phase 1 已实现插件生命周期、自启动、升级保护和自动构建发
 ## KoolShare 离线安装
 
 1. 从本仓库 [Releases](https://github.com/404404/Merlin-V6-Plugin/releases) 下载 easytier_hnd.tar.gz 或 easytier_qca.tar.gz，并一并下载 SHA256SUMS。
-2. 在电脑上校验：sha256sum --check SHA256SUMS。
+2. 在电脑上校验：下载两个包时运行 `sha256sum --check SHA256SUMS`；仅下载 HND 包时运行 `grep '  easytier_hnd.tar.gz$' SHA256SUMS | sha256sum --check -`。不要求在路由器上安装 sha256sum。
 3. 在 KoolShare 软件中心使用“离线安装”上传与固件平台相符的包。
 4. 安装会备份要替换的插件脚本和页面。现有 easytier-core、/koolshare/configs/easytier.conf、网络名称、密钥、节点配置和 easytier_autostart DBUS 值会保留。
-5. 安装不会重启或启动正在运行的 EasyTier。安装完成后，在 Web 页面或 SSH 手动启动。
+5. 安装保留现有服务进程，不会重启或启动服务。若原本未运行，可在 Web 页面或 SSH 手动启动。
+6. Ctrl+F5 强制刷新页面，确认核心版本、节点信息和软件中心图标。插件页面内不再显示额外图标。
 
 SSH 手动安装时，先将归档上传到路由器 /tmp：
 
@@ -105,15 +128,17 @@ Web 表单保留配置保存、日志弹窗和异步提交。CLI 操作则同步
 
 .github/workflows/release.yml 只响应 plugin-v* Tag。发布任务会再次执行完整 CI，检查 Tag 指向的提交已进入 `EasyTier-Merlin`，再创建 Release 并附上两个安装包和 SHA256SUMS。已有同名 Release 不会被覆盖或重复上传。
 
-PR 合并到 `EasyTier-Merlin` 且 CI 全部通过后，先发布候选版：
+后续版本更新到 `EasyTier-Merlin` 且 CI 全部通过后，可用新的版本号发布候选版，例如：
 
-    git tag plugin-v1.1.0-rc.2
-    git push origin plugin-v1.1.0-rc.2
+    git tag -a plugin-v1.1.1-rc.1 <已通过CI的提交SHA> -m 'EasyTier plugin 1.1.1 RC1'
+    git push origin plugin-v1.1.1-rc.1
 
-该 Tag 会创建 GitHub Pre-release，供离线安装包验证。只有 AX56U 实机冷启动和自启动验证通过后，才发布正式版：
+候选版 Tag 会创建 GitHub Pre-release，供离线安装包验证。取得用户发布确认、如实记录实机验证范围并通过完整 CI 后，正式 Tag（不含 `-rc.N`）会生成非预发布 Release。v1.1.0 使用 `plugin-v1.1.0`；以下为后续版本示例（需先同步插件版本元数据）：
 
-    git tag plugin-v1.1.0
-    git push origin plugin-v1.1.0
+    git tag -a plugin-v1.1.1 <已通过CI的提交SHA> -m 'EasyTier plugin 1.1.1'
+    git push origin plugin-v1.1.1
+
+已发布的 Tag 不覆盖或移动；候选版编号也不可重复使用。默认 `Main` 保持为空，不需要将此分支合并回 Main 才能发布。
 
 Release 标题和说明会分别标明插件版本与 EasyTier 官方核心构建版本。CI 不会执行 ARM 核心，也不能替代 RT-AX56U 实机测试。每次 Release 都会明确标注 AX56U 冷启动是否完成验证。
 

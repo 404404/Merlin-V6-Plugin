@@ -5,8 +5,6 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="-1" />
-<link rel="shortcut icon" href="/res/icon-easytier.png?v=1.1.0-rc.2" />
-<link rel="icon" href="/res/icon-easytier.png?v=1.1.0-rc.2" />
 <title>软件中心 - EasyTier</title>
 <link rel="stylesheet" type="text/css" href="index_style.css">
 <link rel="stylesheet" type="text/css" href="form_style.css">
@@ -25,7 +23,7 @@
 <script language="JavaScript" type="text/javascript" src="/general.js"></script>
 <script language="JavaScript" type="text/javascript" src="/js/table/table.js"></script>
 <script language="JavaScript" type="text/javascript" src="/res/softcenter.js"></script>
-<script type="text/javascript" src="/res/easytier_nodes.js?v=1.1.0-rc.2"></script>
+<script type="text/javascript" src="/res/easytier_nodes.js?v=1.1.0"></script>
 <style>
 a:focus { outline: none; }
 .SimpleNote { padding:5px 5px; }
@@ -36,7 +34,6 @@ i { color: #FC0; font-style: normal; }
 .FormTable th { width: 30%; }
 .formfonttitle { font-family: Roboto-Light, "Microsoft JhengHei"; font-size: 18px; margin-left: 5px; }
 .FormTitle, .FormTable th, .FormTable td { font-size: 14px; font-family: Roboto-Light, "Microsoft JhengHei"; }
-.easytier-logo { width:32px; height:32px; vertical-align:middle; margin-right:8px; }
 #easytier_nodes_message { display:inline-block; margin-left:8ch; font-size:12px; }
 </style>
 <script type="text/javascript">
@@ -298,7 +295,7 @@ function clear_runtime_log() {
                                 <tr>
                                     <td bgcolor="#4D595D" colspan="3" valign="top">
                                         <div>&nbsp;</div>
-                                        <div class="formfonttitle"><img class="easytier-logo" src="/res/icon-easytier.png?v=1.1.0-rc.2" alt="EasyTier" />EasyTier <span style="font-size:13px;">插件 v<label id="easytier_plugin_version">1.1.0</label></span></div>
+                                        <div class="formfonttitle">EasyTier <span style="font-size:13px;">插件 v<label id="easytier_plugin_version">1.1.0</label></span></div>
                                         <div style="float: right; width: 15px; height: 25px; margin-top: -20px">
                                             <img id="return_btn" alt="" onclick="reload_Soft_Center();" align="right" style="cursor: pointer; position: absolute; margin-left: -30px; margin-top: -25px;" title="返回软件中心" src="/images/backprev.png" onmouseover="this.src='/images/backprevclick.png'" onmouseout="this.src='/images/backprev.png'" />
                                         </div>

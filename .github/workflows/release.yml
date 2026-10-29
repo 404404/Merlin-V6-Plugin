@@ -75,7 +75,7 @@ jobs:
           - Plugin changes: safe CLI lifecycle, asynchronous AP boot startup, idempotent service/firewall handling, and upgrade rollback support.
           - Node view: read-only official-GUI-style peer information, loopback RPC process verification, bounded CLI queries and private caching. The query tool comes from the same pinned official v2.6.4 archives and does not replace the device core.
           - Legacy KoolShare Web fix: Base64-wrap the node response so httpdb cannot corrupt nested JSON. CLI nodes output remains plain JSON; peer output is bounded to 64 KiB so the encoded callback fits legacy curl's argument limit.
-          - UI: display core version below service status, put node query messages beside the 15-second refresh option, and use the unchanged official EasyTier GUI icon with its license.
+          - UI: display core version below service status and put node query messages beside the 15-second refresh option. The software-center icon is the unchanged official EasyTier GUI image with its license; the extra page logo and custom favicon have been removed. Force-refresh the software center after upgrading to clear an old cached icon.
           - Pending boot workers recheck autostart after obtaining the service mutex, so a disabled setting cancels an older queued startup.
           - Core version: prefer the local node's RPC version, with exact official binary fingerprints as an optional fallback. Never run the problematic core --version command or report the helper's version as the core's version.
           - Legacy Merlin ash compatibility: use the supported type builtin instead of command -v, preventing false dbus-missing install failures and skipped Web API acknowledgements. Installation and service scripts also restore required PATH directories.
@@ -83,9 +83,15 @@ jobs:
           - EasyTier core build baseline in new-install packages: official v${{ steps.versions.outputs.core_version }}, downloaded from the EasyTier release and verified against pinned SHA-256 values.
           - Existing installations keep their current easytier-core, configuration and EasyTier DBUS settings. The installed device core version may be unknown; the installer does not query or replace it.
           - Packages: easytier_hnd.tar.gz and easytier_qca.tar.gz; checksums: SHA256SUMS.
-          - ASUS RT-AX56U: the user reported successful reboot autostart with Phase 1 on 2026-10-28. On 2026-10-29 the backend returned peer rows and identified v2.6.4 by fingerprint; RC1 Web display failed because of legacy httpdb JSON escaping. **This Web transport fix and updated layout still require on-device validation; CI cannot perform that validation.**
-          - This pre-release is for installation testing and is not recommended for critical production use before device validation.
+          - ASUS RT-AX56U / KoolShare Merlin AP mode: the user reported successful reboot autostart on 2026-10-28, and confirmed working functionality and node data collection after installing RC2 on 2026-10-29. The local backend identified the installed core as v2.6.4 by fingerprint and returned the local node's RPC version.
+          - Device validation limits: no separate power-off cold-boot checklist or coverage of other models/firmware has been recorded. The software-center icon was reported stale; the package and installer verify the official image at the expected path, but the device file/browser-cache diagnosis remains open. CI cannot replace device validation. The final page-logo removal still needs visual confirmation after upgrading.
+          - README on EasyTier-Merlin records the release, download links, installation, preservation/rollback policy, and the exact scope of user-reported validation. Main remains intentionally empty.
           NOTES
+          if [[ "${{ steps.versions.outputs.prerelease }}" == true ]]; then
+            echo '- This pre-release is for installation testing.' >> ../release-notes.md
+          else
+            echo '- Stable plugin release authorized by the user after successful RC2 functional/data-collection testing. The bundled official core build baseline remains unchanged.' >> ../release-notes.md
+          fi
 
       - name: Create release once, without overwriting existing assets
         env:
@@ -120,6 +126,8 @@ jobs:
           )
           if [[ "${{ steps.versions.outputs.prerelease }}" == true ]]; then
             release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
           fi
           gh release create "$tag" \
             release-assets/easytier_hnd.tar.gz \
