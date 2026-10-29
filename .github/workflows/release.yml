@@ -84,7 +84,8 @@ jobs:
           - Existing installations keep their current easytier-core, configuration and EasyTier DBUS settings. The installed device core version may be unknown; the installer does not query or replace it.
           - Packages: easytier_hnd.tar.gz and easytier_qca.tar.gz; checksums: SHA256SUMS.
           - ASUS RT-AX56U / KoolShare Merlin AP mode: the user reported successful reboot autostart on 2026-10-28, and confirmed working functionality and node data collection after installing RC2 on 2026-10-29. The local backend identified the installed core as v2.6.4 by fingerprint and returned the local node's RPC version.
-          - Device validation limits: no separate power-off cold-boot checklist or coverage of other models/firmware has been recorded. The software-center icon was reported stale; the package and installer verify the official image at the expected path, but the device file/browser-cache diagnosis remains open. CI cannot replace device validation. The final page-logo removal still needs visual confirmation after upgrading.
+          - Software-center icon: the user subsequently confirmed the official icon displays correctly; the earlier stale display was likely browser caching. The installer also verifies replacement of an old icon in automated tests.
+          - Device validation limits: no separate power-off cold-boot checklist or coverage of other models/firmware has been recorded. CI cannot replace device validation. The final page-logo removal still needs visual confirmation after upgrading.
           - README on EasyTier-Merlin records the release, download links, installation, preservation/rollback policy, and the exact scope of user-reported validation. Main remains intentionally empty.
           NOTES
           if [[ "${{ steps.versions.outputs.prerelease }}" == true ]]; then
