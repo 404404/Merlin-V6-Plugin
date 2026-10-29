@@ -1,0 +1,45 @@
+#!/bin/sh
+scenario=${MOCK_IP_SCENARIO:-good}
+if [ "${1:-}" = link ] && [ "${2:-}" = show ]; then
+    [ "$scenario" != br0_missing ] || exit 1
+    if [ "$scenario" = br0_down ]; then
+        printf '2: br0: <BROADCAST,MULTICAST> mtu 1500 state DOWN mode DEFAULT\n'
+        exit 0
+    fi
+    printf '2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP mode DEFAULT\n'
+    exit 0
+fi
+if [ "${1:-}" = -6 ] && [ "${2:-}" = addr ]; then
+    [ "${MOCK_IP_ADDR_FAIL:-0}" = 1 ] && exit 1
+    if [ "$scenario" = delayed ]; then
+        counter=${MOCK_IP_COUNTER_FILE:?}
+        count=$(cat "$counter" 2>/dev/null)
+        case "$count" in ''|*[!0-9]*) count=0 ;; esac
+        count=$((count + 1))
+        printf '%s\n' "$count" > "$counter"
+        [ "$count" -ge "${MOCK_DELAY_ADDR_CALLS:-3}" ] || exit 0
+    fi
+    case "$scenario" in
+        no_address|br0_missing) exit 0 ;;
+        prefix2)
+            printf '    inet6 fe80::1234/64 scope link\n'
+            printf '    inet6 feb1::5678/64 scope link\n'
+            printf '    inet6 240a:42dd:2002:8152::10/64 scope global dynamic valid_lft 3600sec preferred_lft 1800sec\n'
+            ;;
+        *)
+            printf '    inet6 fe80::1234/64 scope link\n'
+            printf '    inet6 feb1::5678/64 scope link\n'
+            printf '    inet6 fd12:3456:789a::10/64 scope global valid_lft forever preferred_lft forever\n'
+            printf '    inet6 240a:42cc:1001:7141::10/64 scope global dynamic mngtmpaddr valid_lft 86400sec preferred_lft 7200sec\n'
+            printf '    inet6 240a:42c6:1003:82d2::20/64 scope global deprecated dynamic valid_lft 3600sec preferred_lft 0sec\n'
+            printf '    inet6 240a:42cc:1001:7141::99/64 scope global temporary valid_lft 1200sec preferred_lft 600sec\n'
+            ;;
+    esac
+    exit 0
+fi
+if [ "${1:-}" = -6 ] && [ "${2:-}" = route ]; then
+    [ "$scenario" != route_missing ] && [ "$scenario" != no_address ] || exit 0
+    printf 'default via fe80::abcd dev br0 proto ra metric 100\n'
+    exit 0
+fi
+exit 1
