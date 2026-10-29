@@ -32,11 +32,11 @@ assert_field() {
     out=$1
     path=$2
     wanted=$3
-    printf '%s' "$out" | perl -MJSON::PP -e '
+    printf '%s' "$out" | perl -MJSON::PP -MEncode=decode -e '
         local $/; my $j=decode_json(<STDIN>); my $v=$j;
         for my $part (split /\./, $ARGV[0]) { $v=$v->{$part} if ref($v) eq "HASH"; }
         my $got = ref($v) ? JSON::PP->new->encode($v) : defined($v) ? "$v" : "";
-        exit($got eq $ARGV[1] ? 0 : 1);
+        exit($got eq decode("UTF-8", $ARGV[1]) ? 0 : 1);
     ' "$path" "$wanted" || fail "JSON field $path should be $wanted"
 }
 run_rc() {
