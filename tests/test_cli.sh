@@ -26,7 +26,7 @@ expect() { [ "$1" = "$2" ] || fail "$3 (expected '$2', got '$1')"; }
 assert_health() {
     out=$1
     wanted=$2
-    printf '%s' "$out" | perl -MJSON::PP -e 'local $/; my $j=decode_json(<STDIN>); exit(($j->{health} // "") eq $ARGV[0] ? 0 : 1)' "$wanted" || fail "health should be $wanted"
+    printf '%s' "$out" | perl -MJSON::PP -e 'local $/; my $j=decode_json(<STDIN>); exit(($j->{health} // "") eq $ARGV[0] && ($j->{reason} // "") =~ /\p{Han}/ ? 0 : 1)' "$wanted" || fail "health should be $wanted with a Chinese diagnostic"
 }
 assert_field() {
     out=$1
@@ -74,6 +74,7 @@ printf 'preexisting_user_job\n' > "$TEMP/other-cru-job"
 
 out=$("$CONFIG" status --json)
 assert_health "$out" normal
+assert_field "$out" reason 'IPv6 地址、默认路由和公网连通性探测均正常。'
 assert_field "$out" ap_mode true
 assert_field "$out" preferred_ipv6 '240a:42cc:1001:7141::10'
 assert_field "$out" prefix '240a:42cc:1001:7141:0:0:0:0/64'

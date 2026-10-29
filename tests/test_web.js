@@ -16,6 +16,12 @@ assert(html.includes('skin=\'<% nvram_get("sc_skin"); %>\''), "inherits KoolShar
 assert(!/bootstrap|body\s*\{/.test(html), "does not replace the firmware body style or load Bootstrap");
 const ids = Array.from(html.matchAll(/\bid="([^"]+)"/g), match => match[1]);
 assert.strictEqual(new Set(ids).size, ids.length, "all native and plugin element IDs are unique");
+assert(/\.apipv6-content input\.apipv6-time-input\s*\{[^}]*width:\s*120px;[^}]*min-width:\s*120px;[^}]*box-sizing:\s*border-box;/.test(html), "time inputs have a scoped 120px width that overrides the firmware's narrow input class");
+for (const [id, min, max] of [["apipv6-delay", "0", "180"], ["apipv6-interval", "5", "60"]]) {
+    const input = html.match(new RegExp('<input[^>]*id="' + id + '"[^>]*>'));
+    assert(input && /class="[^"]*input_3_table[^"]*apipv6-time-input/.test(input[0]), "time input keeps native skin plus width class: " + id);
+    assert(input[0].includes('min="' + min + '"') && input[0].includes('max="' + max + '"'), "numeric validation range is retained: " + id);
+}
 assert(!/\.innerHTML\b|document\.write\s*\(|\beval\s*\(/.test(controller), "dynamic router data is never executed or inserted as HTML");
 
 function Element() {

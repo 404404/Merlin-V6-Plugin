@@ -425,39 +425,39 @@ EOF
     MIGRATION_PATH=$(read_state_value "$MIGRATION_FILE" path '')
 
     HEALTH=normal
-    HEALTH_REASON='IPv6 address, default route, and probe are available.'
+    HEALTH_REASON='IPv6 地址、默认路由和公网连通性探测均正常。'
     if [ "$MODE" = unknown ] || [ "$WLC_PSTA" = unknown ] || [ "$IP_AVAILABLE" -ne 1 ]; then
         HEALTH=detection_error
-        HEALTH_REASON='Required nvram or ip command is unavailable.'
+        HEALTH_REASON='无法使用必要的 nvram 或 ip 命令。'
     elif [ "$AP_MODE" -ne 1 ]; then
         HEALTH=not_applicable
-        HEALTH_REASON='Automatic repair applies only when sw_mode is 3 and wireless client mode is off.'
+        HEALTH_REASON='自动修复仅适用于 AP 模式：sw_mode=3 且无线客户端模式已关闭。'
     elif [ "$BRIDGE_EXISTS" -ne 1 ]; then
         HEALTH=detection_error
-        HEALTH_REASON='The br0 bridge does not exist.'
+        HEALTH_REASON='br0 桥接接口不存在。'
     elif [ "$BRIDGE_UP" -ne 1 ]; then
         HEALTH=detection_error
-        HEALTH_REASON='The br0 bridge exists but is not UP.'
+        HEALTH_REASON='br0 桥接接口存在，但尚未启用。'
     elif [ "$ADDRESS_READ_OK" -ne 1 ] || [ "$ROUTE_READ_OK" -ne 1 ]; then
         HEALTH=detection_error
-        HEALTH_REASON='IPv6 address or route inspection failed.'
+        HEALTH_REASON='IPv6 地址或路由信息读取失败。'
     elif [ "$DISABLE_IPV6" = unknown ] || [ "$ACCEPT_RA" = unknown ] || [ "$AUTOCONF" = unknown ]; then
         HEALTH=detection_error
-        HEALTH_REASON='One or more br0 IPv6 sysctl values could not be read.'
+        HEALTH_REASON='无法读取 br0 的一项或多项 IPv6 参数。'
     elif [ "$DISABLE_IPV6" != 0 ] || [ "$ACCEPT_RA" != 2 ] || [ "$AUTOCONF" != 1 ]; then
         HEALTH=parameter_error
-        HEALTH_REASON='br0 IPv6 sysctl values do not match SLAAC client settings.'
+        HEALTH_REASON='br0 的 IPv6 参数不符合 SLAAC 客户端要求。'
     elif [ -z "$PRIMARY_IPV6" ]; then
         if [ "$(setting apipv6_last_failure '')" = waiting_ra ]; then
             HEALTH=waiting_ra
-            HEALTH_REASON='SLAAC parameters are set, but no preferred global unicast address has arrived yet.'
+            HEALTH_REASON='SLAAC 参数已设置，正在等待首选全球单播 IPv6 地址。'
         else
             HEALTH=address_error
-            HEALTH_REASON='No preferred global unicast IPv6 address is present on br0.'
+            HEALTH_REASON='br0 尚未获取首选全球单播 IPv6 地址。'
         fi
     elif [ "$DEFAULT_ROUTE" -ne 1 ]; then
         HEALTH=route_error
-        HEALTH_REASON='A preferred global unicast IPv6 address exists, but no IPv6 default route is present.'
+        HEALTH_REASON='已获取首选全球单播 IPv6 地址，但缺少 IPv6 默认路由。'
     else
         if find_executable ping6 >/dev/null 2>&1; then
             if ping6 -c 1 -W 2 "$PROBE_HOST" >/dev/null 2>&1; then
@@ -473,14 +473,14 @@ EOF
             fi
         else
             PUBLIC_CONNECTIVITY=unknown
-            PING_DETAIL='No ping6 or ping command is installed.'
+            PING_DETAIL='固件未提供 ping6 或 ping 命令。'
         fi
         if [ "$PUBLIC_CONNECTIVITY" = failure ]; then
             HEALTH=partial
-            HEALTH_REASON='Address and default route are present, but the ICMPv6 probe failed; the target may filter ICMPv6.'
+            HEALTH_REASON='IPv6 地址和默认路由正常，但公网 ICMPv6 探测失败；目标可能过滤了 ICMPv6。'
         elif [ "$PUBLIC_CONNECTIVITY" = unknown ]; then
             HEALTH=partial
-            HEALTH_REASON='Address and default route are present, but public connectivity could not be probed.'
+            HEALTH_REASON='IPv6 地址和默认路由正常，但无法进行公网连通性探测。'
         fi
     fi
 }

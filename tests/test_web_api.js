@@ -170,6 +170,7 @@ async function request(params, fields = {}, extraEnv = {}) {
     await until(() => el("apipv6-primary").textContent === "240a:42cc:1001:7141::10", "page initial status through callback");
     await until(() => requests.length >= 2 && pending.size === 0, "initial log callback");
     assert(el("apipv6-mode").textContent.includes("AP 模式"));
+    assert.strictEqual(el("apipv6-reason").textContent, "IPv6 地址、默认路由和公网连通性探测均正常。", "Chinese diagnostic survives the legacy httpdb envelope and renders on the page");
     assert(el("apipv6-address-rows").children.length > 1);
     // Procfs-style values without a trailing newline must not disappear.
     for (const [name, value] of Object.entries({ disable_ipv6: "0", autoconf: "1", accept_ra: "2" })) fs.writeFileSync(path.join(sysctl, "br0", name), value);

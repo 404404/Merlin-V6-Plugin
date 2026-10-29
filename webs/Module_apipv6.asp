@@ -31,6 +31,7 @@
 .apipv6-content .apipv6-note { margin: 10px 5px; line-height: 1.7; }
 .apipv6-content .apipv6-actions { margin: 12px 0; text-align: center; }
 .apipv6-content .button_gen { margin: 3px; }
+.apipv6-content input.apipv6-time-input { width: 120px; min-width: 120px; box-sizing: border-box; }
 .apipv6-content .apipv6-state { font-weight: bold; }
 .apipv6-content .state-normal, .apipv6-content .message-ok { color: #7be0a3; }
 .apipv6-content .state-partial, .apipv6-content .state-waiting_ra { color: #ffcc66; }
@@ -336,9 +337,9 @@ function init() { window.initApipv6(); }
                                     <thead><tr><td colspan="2">自动修复设置</td></tr></thead>
                                     <tbody>
                                         <tr><th><label for="apipv6-enabled">启用开机自动修复</label></th><td><input id="apipv6-enabled" type="checkbox"> 启用插件开机任务</td></tr>
-                                        <tr><th><label for="apipv6-delay">开机修复延迟</label></th><td><input class="input_3_table" id="apipv6-delay" type="number" min="0" max="180" value="30"> 秒（0–180）</td></tr>
+                                        <tr><th><label for="apipv6-delay">开机修复延迟</label></th><td><input class="input_3_table apipv6-time-input" id="apipv6-delay" type="number" min="0" max="180" value="30"> 秒（0–180）</td></tr>
                                         <tr><th><label for="apipv6-health-enabled">周期健康检查</label></th><td><input id="apipv6-health-enabled" type="checkbox"> 启用定时诊断</td></tr>
-                                        <tr><th><label for="apipv6-interval">检查间隔</label></th><td><input class="input_3_table" id="apipv6-interval" type="number" min="5" max="60" value="15"> 分钟（5–60）</td></tr>
+                                        <tr><th><label for="apipv6-interval">检查间隔</label></th><td><input class="input_3_table apipv6-time-input" id="apipv6-interval" type="number" min="5" max="60" value="15"> 分钟（5–60）</td></tr>
                                         <tr><th><label for="apipv6-repair-on-error">异常时自动修复</label></th><td><input id="apipv6-repair-on-error" type="checkbox"> 地址 / 路由 / 参数异常时修复</td></tr>
                                     </tbody>
                                 </table>
